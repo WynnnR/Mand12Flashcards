@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mr. Zhang's Mandarin 12 Flashcard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .card-container {
+            perspective: 1000px;
+        }
+        .card {
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+        }
+        .card.is-flipped {
+            transform: rotateY(180deg);
+        }
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            padding: 1rem;
+        }
+        .card-face-back {
+            transform: rotateY(180deg);
+        }
+        #login-overlay, #deck-selection-overlay, #teacher-dashboard-overlay, #teacher-code-overlay, #edit-card-modal, #delete-confirm-modal, #help-modal {
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-gray-800 flex items-center justify-center min-h-screen">
+
+    <!-- Login Screen -->
+    <div id="login-overlay" class="absolute inset-0 bg-slate-100 flex items-center justify-center">
+        <div class="bg-white p-8 rounded-2xl shadow-lg text-center max-w-sm w-full relative">
+            <h2 class="text-2xl font-bold text-blue-600 mb-2">Student Login</h2>
+            <p class="text-gray-600 mb-6">Enter your Name and Student ID to begin.</p>
+            <div class="space-y-3">
+                <input id="student-name-input" type="text" placeholder="Your Full Name..." class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <input id="student-id-input" type="text" placeholder="Your Student ID..." class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <button id="login-btn" class="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors">Login / Start</button>
+            </div>
+            <p id="login-error" class="text-red-500 text-sm mt-2 h-4"></p>
+            <p id="teacher-admin-link" class="absolute bottom-4 right-4 text-xs text-gray-400 hover:text-blue-500 cursor-pointer">Teacher Admin</p>
+        </div>
+    </div>
+
+    <!-- Teacher Code Entry Screen -->
+    <div id="teacher-code-overlay" class="absolute inset-0 bg-slate-100 flex items-center justify-center hidden">
+        <div class="bg-white p-8 rounded-2xl shadow-lg text-center max-w-sm w-full relative">
+            <h2 class="text-2xl font-bold text-blue-600 mb-2">Teacher Access</h2>
+            <p class="text-gray-600 mb-6">Please enter the class code to view student data.</p>
+            <div class="space-y-3">
+                <input id="teacher-code-input" type="password" placeholder="Class Code..." class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <button id="submit-teacher-code-btn" class="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors">Enter</button>
+            </div>
+            <p id="teacher-code-error" class="text-red-500 text-sm mt-2 h-4"></p>
+            <button id="back-from-code-btn" class="text-sm text-gray-500 hover:text-red-500 font-semibold mt-6">Back</button>
+        </div>
+    </div>
+    
+    <!-- Deck Selection Screen -->
+    <div id="deck-selection-overlay" class="absolute inset-0 bg-slate-100 flex items-center justify-center hidden">
+        <div class="bg-white p-8 rounded-2xl shadow-lg text-center max-w-sm w-full">
+            <h2 id="welcome-message" class="text-2xl font-bold text-blue-600 mb-2">Welcome!</h2>
+            <p class="text-gray-600 mb-6">Please select a deck to begin your session.</p>
+            <div id="deck-buttons" class="space-y-3">
+                <button data-deck="hsk2" class="deck-btn w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-colors">HSK 2</button>
+                <button data-deck="hsk3" class="deck-btn w-full bg-yellow-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-yellow-600 transition-colors">HSK 3</button>
+                <button data-deck="hsk4" class="deck-btn w-full bg-indigo-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-600 transition-colors">HSK 4</button>
+                <button data-deck="complete" class="deck-btn w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors">Complete</button>
+            </div>
+             <button id="logout-btn" class="text-sm text-gray-500 hover:text-red-500 font-semibold mt-6">Log Out</button>
+        </div>
+    </div>
+
+    <!-- Teacher Dashboard -->
+    <div id="teacher-dashboard-overlay" class="absolute inset-0 bg-slate-100 p-4 md:p-8 hidden">
+        <div class="bg-white p-6 md:p-8 rounded-2xl shadow-lg max-w-2xl w-full mx-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-blue-600">Teacher Dashboard</h2>
+                <button id="back-to-login-screen-btn" class="text-sm text-gray-500 hover:text-red-500 font-semibold">Back to Login</button>
+            </div>
+            <div class="mb-6">
+                <label for="teacher-student-id-input" class="block text-sm font-medium text-gray-700 mb-1">Enter Student ID to View Stats</label>
+                <div class="flex space-x-2">
+                    <input id="teacher-student-id-input" type="text" placeholder="Student ID..." class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <button id="fetch-student-data-btn" class="bg-blue-500 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-600 transition-colors">Fetch</button>
+                </div>
+                 <p id="teacher-error" class="text-red-500 text-sm mt-2 h-4"></p>
+            </div>
+            <div id="stats-display-area" class="space-y-4 hidden">
+                 <h3 id="stats-for-student-id" class="text-lg font-semibold text-gray-800"></h3>
+                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                     <!-- Daily Stats -->
+                     <div class="bg-blue-50 p-4 rounded-lg">
+                         <h4 class="font-bold text-blue-700 mb-2">Today</h4>
+                         <p><strong>Reviews:</strong> <span id="stats-today-reviews">0</span></p>
+                         <p><strong>Accuracy:</strong> <span id="stats-today-accuracy">0%</span></p>
+                         <p><strong>Avg. Speed:</strong> <span id="stats-today-speed">0s</span></p>
+                     </div>
+                     <!-- Weekly Stats -->
+                     <div class="bg-green-50 p-4 rounded-lg">
+                         <h4 class="font-bold text-green-700 mb-2">This Week</h4>
+                         <p><strong>Reviews:</strong> <span id="stats-week-reviews">0</span></p>
+                         <p><strong>Accuracy:</strong> <span id="stats-week-accuracy">0%</span></p>
+                         <p><strong>Avg. Speed:</strong> <span id="stats-week-speed">0s</span></p>
+                     </div>
+                     <!-- Monthly Stats -->
+                     <div class="bg-indigo-50 p-4 rounded-lg">
+                         <h4 class="font-bold text-indigo-700 mb-2">This Month</h4>
+                         <p><strong>Reviews:</strong> <span id="stats-month-reviews">0</span></p>
+                         <p><strong>Accuracy:</strong> <span id="stats-month-accuracy">0%</span></p>
+                         <p><strong>Avg. Speed:</strong> <span id="stats-month-speed">0s</span></p>
+                     </div>
+                 </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Main App -->
+    <div id="app-container" class="max-w-xl w-full mx-auto p-4 md:p-6 bg-white rounded-2xl shadow-lg hidden">
+        <header class="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg -m-2">
+             <div class="flex justify-between items-center">
+                <h1 id="deck-title" class="text-3xl font-bold text-blue-600">Flashcard Deck</h1>
+                 <div class="flex items-center space-x-4">
+                    <button id="change-deck-btn" class="text-sm text-gray-500 hover:text-blue-500 font-semibold">Change Deck</button>
+                    <div id="help-icon" title="How ratings work" class="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 font-bold cursor-pointer hover:bg-blue-200 hover:text-blue-700 transition-colors text-sm">?</div>
+                </div>
+            </div>
+            <p id="student-id-display" class="text-left text-gray-500 text-sm mt-1"></p>
+            <p id="deck-stats" class="text-center text-gray-500 mt-2">Loading stats...</p>
+            <p id="daily-goals-stats" class="text-center text-gray-600 font-semibold text-sm mt-1"></p>
+            <nav class="flex justify-center border-b mt-4">
+                <button id="review-tab-btn" class="px-6 py-2 font-semibold text-blue-600 border-b-2 border-blue-600">Review</button>
+                <button id="add-tab-btn" class="px-6 py-2 font-semibold text-gray-500">Add Cards</button>
+                <button id="edit-tab-btn" class="px-6 py-2 font-semibold text-gray-500">Edit</button>
+            </nav>
+        </header>
+
+        <main>
+            <!-- Review Section -->
+            <div id="review-section">
+                <div id="card-area" class="card-container h-64">
+                     <div id="no-cards-message" class="hidden text-center text-gray-500 pt-20">
+                        <p class="font-semibold text-lg">Deck is empty!</p>
+                        <p>Use the "Add Cards" tab to get started.</p>
+                    </div>
+                    <div id="all-done-message" class="hidden text-center text-gray-500 pt-20">
+                        <p class="font-semibold text-lg">All done for now!</p>
+                        <p>Come back later to review more cards.</p>
+                    </div>
+                    <div id="current-card" class="card w-full h-full rounded-lg shadow-md">
+                        <div class="card-face card-face-front bg-white border-2 border-gray-200 rounded-lg p-4">
+                            <p id="card-front" class="text-xl text-center"></p>
+                        </div>
+                        <div class="card-face card-face-back bg-blue-100 border-2 border-blue-200 rounded-lg p-4">
+                            <p id="card-back" class="text-xl text-center"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div id="action-buttons" class="mt-6 flex flex-col items-center">
+                    <button id="show-answer-btn" class="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors shadow-sm">Show Answer</button>
+                    <div id="rating-buttons" class="hidden w-full grid grid-cols-4 gap-3 mt-4">
+                        <button data-rating="again" class="rating-btn bg-red-500 text-white py-3 rounded-lg hover:bg-red-600 transition-colors shadow-sm">Again</button>
+                        <button data-rating="hard" class="rating-btn bg-orange-500 text-white py-3 rounded-lg hover:bg-orange-600 transition-colors shadow-sm">Hard</button>
+                        <button data-rating="good" class="rating-btn bg-yellow-500 text-white py-3 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm">Okay</button>
+                        <button data-rating="easy" class="rating-btn bg-green-500 text-white py-3 rounded-lg hover:bg-green-600 transition-colors shadow-sm">Easy</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Cards Section -->
+            <div id="add-card-section" class="hidden bg-slate-50 p-4 rounded-lg">
+                <form id="add-card-form">
+                    <div class="mb-4">
+                        <label for="front" class="block text-sm font-medium text-gray-700 mb-1">Front of Card (Question)</label>
+                        <textarea id="front" rows="3" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="e.g., What is the capital of Japan?"></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label for="back" class="block text-sm font-medium text-gray-700 mb-1">Back of Card (Answer)</label>
+                        <textarea id="back" rows="3" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="e.g., Tokyo"></textarea>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors">Add Card</button>
+                    <p id="add-card-feedback" class="text-green-600 text-center mt-2 h-5"></p>
+                </form>
+            </div>
+
+            <!-- Edit Deck Section -->
+            <div id="edit-deck-section" class="hidden">
+                <div class="border rounded-lg max-h-80 overflow-y-auto bg-slate-50">
+                    <div id="card-list-container" class="divide-y divide-slate-200">
+                        <!-- Card list will be dynamically populated here -->
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Edit Card Modal -->
+    <div id="edit-card-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden">
+        <div class="bg-white p-8 rounded-2xl shadow-lg max-w-lg w-full">
+            <h3 class="text-xl font-bold text-blue-600 mb-4">Edit Card</h3>
+            <div class="space-y-4">
+                <div>
+                    <label for="edit-front" class="block text-sm font-medium text-gray-700 mb-1">Front</label>
+                    <textarea id="edit-front" rows="3" class="w-full p-2 border border-gray-300 rounded-lg"></textarea>
+                </div>
+                <div>
+                    <label for="edit-back" class="block text-sm font-medium text-gray-700 mb-1">Back</label>
+                    <textarea id="edit-back" rows="3" class="w-full p-2 border border-gray-300 rounded-lg"></textarea>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button id="cancel-edit-btn" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancel</button>
+                <button id="save-edit-btn" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">Save Changes</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden">
+        <div class="bg-white p-8 rounded-2xl shadow-lg max-w-sm w-full text-center">
+            <h3 class="text-xl font-bold text-red-600 mb-4">Are you sure?</h3>
+            <p class="text-gray-600 mb-6">This card will be permanently deleted.</p>
+            <div class="flex justify-center space-x-4">
+                <button id="cancel-delete-btn" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancel</button>
+                <button id="confirm-delete-btn" class="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">Delete</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Help Modal -->
+    <div id="help-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden">
+        <div class="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full mx-4">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-blue-600">How Ratings Work</h3>
+                <button id="close-help-btn" class="text-gray-400 hover:text-gray-800 text-2xl font-bold">&times;</button>
+            </div>
+            <ul class="space-y-4 text-gray-700">
+                <li class="flex items-start"><div class="w-4 h-4 rounded-full bg-red-500 mr-3 mt-1 flex-shrink-0"></div><div><strong>Again:</strong> You didn't know the answer. The card will show up again in about 1 minute.</div></li>
+                <li class="flex items-start"><div class="w-4 h-4 rounded-full bg-orange-500 mr-3 mt-1 flex-shrink-0"></div><div><strong>Hard:</strong> You struggled to remember. The card will come back sooner than "Okay".</div></li>
+                <li class="flex items-start"><div class="w-4 h-4 rounded-full bg-yellow-500 mr-3 mt-1 flex-shrink-0"></div><div><strong>Okay:</strong> You remembered, but it took some effort. The review interval will increase significantly.</div></li>
+                <li class="flex items-start"><div class="w-4 h-4 rounded-full bg-green-500 mr-3 mt-1 flex-shrink-0"></div><div><strong>Easy:</strong> You knew the answer instantly. The review interval will increase even more, pushing the card far into the future.</div></li>
+            </ul>
+        </div>
+    </div>
+
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, writeBatch, query, getDocs, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        // --- DOM ELEMENTS ---
+        const loginOverlay = document.getElementById('login-overlay');
+        const studentIdInput = document.getElementById('student-id-input');
+        const studentNameInput = document.getElementById('student-name-input');
+        const loginBtn = document.getElementById('login-btn');
+        const loginError = document.getElementById('login-error');
+        const deckSelectionOverlay = document.getElementById('deck-selection-overlay');
+        const welcomeMessage = document.getElementById('welcome-message');
+        const deckButtons = document.getElementById('deck-buttons');
+        const logoutBtn = document.getElementById('logout-btn');
+        const appContainer = document.getElementById('app-container');
+        const studentIdDisplay = document.getElementById('student-id-display');
+        const deckTitle = document.getElementById('deck-title');
+        const changeDeckBtn = document.getElementById('change-deck-btn');
+        const reviewTabBtn = document.getElementById('review-tab-btn');
+        const addTabBtn = document.getElementById('add-tab-btn');
+        const editTabBtn = document.getElementById('edit-tab-btn');
+        const reviewSection = document.getElementById('review-section');
+        const addCardSection = document.getElementById('add-card-section');
+        const editDeckSection = document.getElementById('edit-deck-section');
+        const deckStatsEl = document.getElementById('deck-stats');
+        const dailyGoalsStatsEl = document.getElementById('daily-goals-stats');
+        const currentCardEl = document.getElementById('current-card');
+        const cardFrontEl = document.getElementById('card-front');
+        const cardBackEl = document.getElementById('card-back');
+        const noCardsMessage = document.getElementById('no-cards-message');
+        const allDoneMessage = document.getElementById('all-done-message');
+        const showAnswerBtn = document.getElementById('show-answer-btn');
+        const ratingButtons = document.getElementById('rating-buttons');
+        const addCardForm = document.getElementById('add-card-form');
+        const frontInput = document.getElementById('front');
+        const backInput = document.getElementById('back');
+        const addCardFeedback = document.getElementById('add-card-feedback');
+        const cardListContainer = document.getElementById('card-list-container');
+        // Modals
+        const editCardModal = document.getElementById('edit-card-modal');
+        const editFrontInput = document.getElementById('edit-front');
+        const editBackInput = document.getElementById('edit-back');
+        const cancelEditBtn = document.getElementById('cancel-edit-btn');
+        const saveEditBtn = document.getElementById('save-edit-btn');
+        const deleteConfirmModal = document.getElementById('delete-confirm-modal');
+        const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+        const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+        const helpModal = document.getElementById('help-modal');
+        const helpIcon = document.getElementById('help-icon');
+        const closeHelpBtn = document.getElementById('close-help-btn');
+        // Teacher Elements
+        const teacherAdminLink = document.getElementById('teacher-admin-link');
+        const teacherCodeOverlay = document.getElementById('teacher-code-overlay');
+        const teacherCodeInput = document.getElementById('teacher-code-input');
+        const submitTeacherCodeBtn = document.getElementById('submit-teacher-code-btn');
+        const teacherCodeError = document.getElementById('teacher-code-error');
+        const backFromCodeBtn = document.getElementById('back-from-code-btn');
+        const teacherDashboardOverlay = document.getElementById('teacher-dashboard-overlay');
+        const backToLoginScreenBtn = document.getElementById('back-to-login-screen-btn');
+        const teacherStudentIdInput = document.getElementById('teacher-student-id-input');
+        const fetchStudentDataBtn = document.getElementById('fetch-student-data-btn');
+        const teacherError = document.getElementById('teacher-error');
+        const statsDisplayArea = document.getElementById('stats-display-area');
+        const statsForStudentIdEl = document.getElementById('stats-for-student-id');
+        
+        // --- FIREBASE & STATE ---
+        let db, auth;
+        let deck = [];
+        let currentCard = null;
+        let userLoginId = null; 
+        let deckId = null;
+        let unsubscribeFromDeck; 
+        let reviewStartTime = null;
+        let dailyProgress = { newCardsToday: 0, reviewsToday: 0 };
+        let cardIdToEditOrDelete = null;
+        const dailyGoals = { newCards: 30, reviews: 60 };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        const INTERVALS = { AGAIN: 1 };
+        
+        async function initializeFirebase() {
+            try {
+                let firebaseConfig;
+                let initialAuthToken = null;
+
+                if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                    firebaseConfig = JSON.parse(__firebase_config);
+                    initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                } else {
+                    firebaseConfig = {
+                      apiKey: "AIzaSyDLb2nmy5HYNNNTdS87pdDqLZk7TkVK-Rc",
+                      authDomain: "mand12cards.firebaseapp.com",
+                      projectId: "mand12cards",
+                      storageBucket: "mand12cards.appspot.com",
+                      messagingSenderId: "916004335850",
+                      appId: "1:916004335850:web:1a967ff0f3d26843f16793"
+                    };
+                }
+
+                if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes("PASTE_YOUR")) {
+                     throw new Error("Firebase config not found. If deploying, please paste your project's firebaseConfig object.");
+                }
+
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (!user) {
+                         try {
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        } catch (error) {
+                             console.error("Authentication failed:", error);
+                             loginError.textContent = "Connection error.";
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+                loginError.textContent = error.message;
+            }
+        }
+       
+        const startUserSession = async (studentId, studentName) => {
+            userLoginId = studentId;
+            sessionStorage.setItem('userLoginId', userLoginId);
+
+            const profileRef = doc(db, `artifacts/${appId}/public/data/students/${userLoginId}/profile/info`);
+            const profileSnap = await getDoc(profileRef);
+            if (!profileSnap.exists()) {
+                await setDoc(profileRef, { name: studentName, createdAt: Date.now() });
+            }
+
+            const updatedProfileSnap = await getDoc(profileRef);
+            const userName = updatedProfileSnap.exists() ? updatedProfileSnap.data().name : studentName;
+
+            welcomeMessage.textContent = `Welcome, ${userName}!`;
+            await loadDailyProgress();
+            loginOverlay.classList.add('hidden');
+            
+            const savedDeckId = sessionStorage.getItem('deckId');
+            if (savedDeckId) {
+                handleDeckSelection(savedDeckId);
+            } else {
+                deckSelectionOverlay.classList.remove('hidden');
+            }
+        };
+
+        const handleLogin = async () => {
+            const enteredId = studentIdInput.value.trim();
+            const enteredName = studentNameInput.value.trim();
+            if (!enteredId || !enteredName) {
+                loginError.textContent = "Please enter both your Name and Student ID.";
+                return;
+            }
+            loginError.textContent = "";
+
+            if (enteredId === 'WynR29') {
+                loginOverlay.classList.add('hidden');
+                showTeacherDashboard();
+            } else {
+                await startUserSession(enteredId, enteredName);
+            }
+        };
+        
+        const handleLogout = () => {
+            if (unsubscribeFromDeck) unsubscribeFromDeck();
+            sessionStorage.removeItem('userLoginId');
+            sessionStorage.removeItem('deckId');
+            userLoginId = null; deckId = null; deck = []; currentCard = null;
+            appContainer.classList.add('hidden');
+            deckSelectionOverlay.classList.add('hidden');
+            loginOverlay.classList.remove('hidden');
+        };
+
+        const getTodaysDateString = () => new Date().toISOString().split('T')[0];
+
+        const loadDailyProgress = async () => {
+            if (!userLoginId) return;
+            const progressRef = doc(db, `artifacts/${appId}/public/data/students/${userLoginId}/progress/daily`);
+            const progressSnap = await getDoc(progressRef);
+            const todayStr = getTodaysDateString();
+
+            if (progressSnap.exists() && progressSnap.data().lastSessionDate === todayStr) {
+                dailyProgress = progressSnap.data();
+            } else {
+                dailyProgress = { newCardsToday: 0, reviewsToday: 0, lastSessionDate: todayStr };
+                await setDoc(progressRef, dailyProgress);
+            }
+            updateStatsUI();
+        };
+
+        const updateDailyProgressInFirestore = async () => {
+             if (!userLoginId) return;
+             const progressRef = doc(db, `artifacts/${appId}/public/data/students/${userLoginId}/progress/daily`);
+             await setDoc(progressRef, dailyProgress, { merge: true });
+        };
+
+        const handleDeckSelection = (selectedDeckId) => {
+            deckId = selectedDeckId;
+            sessionStorage.setItem('deckId', deckId);
+            const deckNames = { hsk2: 'HSK 2', hsk3: 'HSK 3', hsk4: 'HSK 4', complete: 'Complete Deck' };
+            deckTitle.textContent = deckNames[selectedDeckId] || 'Flashcard Deck';
+            deckSelectionOverlay.classList.add('hidden');
+            appContainer.classList.remove('hidden');
+            studentIdDisplay.textContent = `Student ID: ${userLoginId}`;
+            loadDeck();
+        };
+
+        const handleChangeDeck = () => {
+            if (unsubscribeFromDeck) unsubscribeFromDeck(); 
+            deck = []; currentCard = null; deckId = null;
+            sessionStorage.removeItem('deckId');
+            appContainer.classList.add('hidden');
+            deckSelectionOverlay.classList.remove('hidden');
+        };
+
+        const getDeckCollectionPath = (sId = userLoginId, dId = deckId) => `artifacts/${appId}/public/data/students/${sId}/decks/${dId}/cards`;
+        const getDeckCollection = (dId = deckId) => collection(db, getDeckCollectionPath(userLoginId, dId));
+
+        const loadDeck = () => {
+            if (!userLoginId || !deckId) return;
+            const deckCollection = getDeckCollection();
+            unsubscribeFromDeck = onSnapshot(deckCollection, (snapshot) => {
+                deck = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                if(!editDeckSection.classList.contains('hidden')) {
+                    populateCardList();
+                } else {
+                    switchTab('review'); 
+                }
+            }, (error) => {
+                console.error("Error loading deck:", error);
+                deckStatsEl.textContent = "Could not load deck.";
+            });
+        };
+
+        const getDueCards = () => deck ? deck.filter(card => card.nextReviewDate <= Date.now()) : [];
+        
+        const updateStatsUI = () => {
+            const totalCards = deck.length;
+            const dueCardsCount = getDueCards().length;
+            deckStatsEl.textContent = `${dueCardsCount} cards to review out of ${totalCards} total.`;
+            dailyGoalsStatsEl.textContent = `New Cards Today: ${dailyProgress.newCardsToday}/${dailyGoals.newCards} | Reviews Today: ${dailyProgress.reviewsToday}/${dailyGoals.reviews}`;
+        };
+
+        const showNextCard = () => {
+            currentCardEl.classList.remove('is-flipped');
+            ratingButtons.classList.add('hidden');
+            showAnswerBtn.classList.remove('hidden');
+            reviewStartTime = Date.now();
+            
+            if (dailyProgress.reviewsToday >= dailyGoals.reviews) {
+                allDoneMessage.innerHTML = `<p class="font-semibold text-lg">Daily review goal met!</p><p>Great work today. Come back tomorrow!</p>`;
+                allDoneMessage.classList.remove('hidden');
+                currentCardEl.classList.add('hidden'); noCardsMessage.classList.add('hidden');
+                showAnswerBtn.classList.add('hidden'); updateStatsUI();
+                return;
+            }
+
+            const dueCards = getDueCards();
+            if (deck.length === 0) {
+                noCardsMessage.classList.remove('hidden'); currentCardEl.classList.add('hidden');
+                allDoneMessage.classList.add('hidden'); showAnswerBtn.classList.add('hidden');
+            } else if (dueCards.length > 0) {
+                currentCard = dueCards[Math.floor(Math.random() * dueCards.length)];
+                cardFrontEl.textContent = currentCard.front; cardBackEl.textContent = currentCard.back;
+                currentCardEl.classList.remove('hidden'); noCardsMessage.classList.add('hidden');
+                allDoneMessage.classList.add('hidden');
+            } else {
+                currentCard = null;
+                allDoneMessage.innerHTML = `<p class="font-semibold text-lg">All done for now!</p><p>Come back later to review more cards.</p>`;
+                allDoneMessage.classList.remove('hidden'); currentCardEl.classList.add('hidden');
+                noCardsMessage.classList.add('hidden'); showAnswerBtn.classList.add('hidden');
+            }
+            updateStatsUI();
+        };
+
+        const handleShowAnswer = () => {
+            currentCardEl.classList.add('is-flipped');
+            showAnswerBtn.classList.add('hidden');
+            ratingButtons.classList.remove('hidden');
+        };
+
+        const handleRating = async (e) => {
+            if (!currentCard || !reviewStartTime) return;
+            const reviewSpeed = Date.now() - reviewStartTime;
+            const rating = e.target.dataset.rating;
+            const wasCorrect = rating !== 'again';
+            const reviewHistoryRef = collection(db, `artifacts/${appId}/public/data/students/${userLoginId}/reviewHistory`);
+            try {
+                await addDoc(reviewHistoryRef, { cardId: currentCard.id, deckId, timestamp: Date.now(), speed: reviewSpeed, correct: wasCorrect });
+            } catch(error) { console.error("Failed to log review history:", error); }
+
+            dailyProgress.reviewsToday++;
+            updateDailyProgressInFirestore();
+            updateStatsUI();
+
+            const now = new Date();
+            let nextInterval;
+            if (rating === 'again') {
+                nextInterval = INTERVALS.AGAIN;
+            } else {
+                const currentInterval = currentCard.interval || 1;
+                if (rating === 'hard') nextInterval = currentInterval * 1.2;
+                else if (rating === 'good') nextInterval = currentInterval * 2.5;
+                else if (rating === 'easy') nextInterval = currentInterval * 4;
+            }
+            nextInterval = Math.max(1, parseFloat(nextInterval.toFixed(1)));
+            
+            const updates = { nextReviewDate: now.getTime() + nextInterval * 60 * 1000, interval: nextInterval };
+            const cardRef = doc(db, getDeckCollectionPath(), currentCard.id);
+            try { await updateDoc(cardRef, updates); } catch (error) { console.error("Error updating card:", error); }
+        };
+            
+        const handleAddCard = async (e) => {
+            e.preventDefault();
+            if (dailyProgress.newCardsToday >= dailyGoals.newCards) {
+                addCardFeedback.textContent = 'Daily new card limit reached.';
+                addCardFeedback.classList.remove('text-green-600'); addCardFeedback.classList.add('text-red-600');
+                return;
+            }
+            const front = frontInput.value.trim(); const back = backInput.value.trim();
+            if (!front || !back) return;
+            const newCard = { front, back, nextReviewDate: Date.now(), interval: 1, easeFactor: 2.5 };
+            
+            try {
+                await addDoc(getDeckCollection(), newCard);
+                const hskDecks = ['hsk2', 'hsk3', 'hsk4'];
+                if (hskDecks.includes(deckId)) {
+                    const completeDeckCollection = collection(db, getDeckCollectionPath(userLoginId, 'complete'));
+                    await addDoc(completeDeckCollection, newCard);
+                }
+                dailyProgress.newCardsToday++;
+                await updateDailyProgressInFirestore();
+                updateStatsUI();
+                frontInput.value = ''; backInput.value = ''; frontInput.focus();
+                addCardFeedback.textContent = 'Card added successfully!';
+                addCardFeedback.classList.add('text-green-600'); addCardFeedback.classList.remove('text-red-600');
+                setTimeout(() => addCardFeedback.textContent = '', 2000);
+            } catch (error) {
+                console.error("Error adding card:", error);
+                addCardFeedback.textContent = 'Error adding card.';
+                addCardFeedback.classList.remove('text-green-600'); addCardFeedback.classList.add('text-red-600');
+                setTimeout(() => addCardFeedback.textContent = '', 2000);
+            }
+        };
+        
+        // --- EDIT DECK FUNCTIONS ---
+        const populateCardList = () => {
+            cardListContainer.innerHTML = '';
+            if (deck.length === 0) {
+                cardListContainer.innerHTML = '<p class="p-4 text-center text-gray-500">This deck is empty.</p>';
+                return;
+            }
+            deck.forEach(card => {
+                const cardEl = document.createElement('div');
+                cardEl.className = 'p-4 flex justify-between items-center';
+                cardEl.innerHTML = `
+                    <div class="flex-1 mr-4 overflow-hidden">
+                        <p class="font-medium text-gray-800 truncate">${card.front}</p>
+                        <p class="text-sm text-gray-500 truncate">${card.back}</p>
+                    </div>
+                    <div>
+                        <button data-id="${card.id}" class="edit-card-btn text-blue-500 hover:text-blue-700 mr-3 font-semibold">Edit</button>
+                        <button data-id="${card.id}" class="delete-card-btn text-red-500 hover:text-red-700 font-semibold">Delete</button>
+                    </div>
+                `;
+                cardListContainer.appendChild(cardEl);
+            });
+        };
+        
+        const openEditModal = (cardId) => {
+            const card = deck.find(c => c.id === cardId);
+            if (!card) return;
+            cardIdToEditOrDelete = cardId;
+            editFrontInput.value = card.front;
+            editBackInput.value = card.back;
+            editCardModal.classList.remove('hidden');
+        };
+        
+        const closeEditModal = () => {
+            cardIdToEditOrDelete = null;
+            editCardModal.classList.add('hidden');
+        };
+
+        const handleSaveChanges = async () => {
+            const newFront = editFrontInput.value.trim();
+            const newBack = editBackInput.value.trim();
+
+            if (!cardIdToEditOrDelete || !newFront || !newBack) return;
+
+            const cardRef = doc(db, getDeckCollectionPath(), cardIdToEditOrDelete);
+            try {
+                await updateDoc(cardRef, { front: newFront, back: newBack });
+                closeEditModal();
+            } catch (error) {
+                console.error("Error updating card:", error);
+            }
+        };
+        
+        const openDeleteConfirm = (cardId) => {
+            cardIdToEditOrDelete = cardId;
+            deleteConfirmModal.classList.remove('hidden');
+        };
+
+        const closeDeleteConfirm = () => {
+            cardIdToEditOrDelete = null;
+            deleteConfirmModal.classList.add('hidden');
+        };
+
+        const handleDeleteCard = async () => {
+            if (!cardIdToEditOrDelete) return;
+            const cardRef = doc(db, getDeckCollectionPath(), cardIdToEditOrDelete);
+            try {
+                await deleteDoc(cardRef);
+                closeDeleteConfirm();
+            } catch (error) {
+                console.error("Error deleting card:", error);
+            }
+        };
+            
+        const switchTab = (tab) => {
+            const tabs = {
+                review: { section: reviewSection, btn: reviewTabBtn },
+                add: { section: addCardSection, btn: addTabBtn },
+                edit: { section: editDeckSection, btn: editTabBtn }
+            };
+
+            Object.values(tabs).forEach(({ section, btn }) => {
+                section.classList.add('hidden');
+                btn.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+                btn.classList.add('text-gray-500');
+            });
+
+            tabs[tab].section.classList.remove('hidden');
+            tabs[tab].btn.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+
+            if (tab === 'review') showNextCard();
+            else if (tab === 'edit') populateCardList();
+        };
+
+        // --- TEACHER DASHBOARD FUNCTIONS ---
+        const showTeacherDashboard = () => {
+            loginOverlay.classList.add('hidden');
+            deckSelectionOverlay.classList.add('hidden');
+            appContainer.classList.add('hidden');
+            teacherDashboardOverlay.classList.remove('hidden');
+        };
+
+        const hideTeacherDashboard = () => {
+            teacherDashboardOverlay.classList.add('hidden');
+            loginOverlay.classList.remove('hidden');
+            teacherStudentIdInput.value = '';
+            statsDisplayArea.classList.add('hidden');
+            teacherError.textContent = '';
+        };
+
+        const fetchAndDisplayStudentData = async () => {
+            const studentIdToFetch = teacherStudentIdInput.value.trim();
+            if (!studentIdToFetch) {
+                teacherError.textContent = 'Please enter a Student ID.';
+                return;
+            }
+            teacherError.textContent = '';
+            statsDisplayArea.classList.add('hidden');
+
+            try {
+                const profileRef = doc(db, `artifacts/${appId}/public/data/students/${studentIdToFetch}/profile/info`);
+                const profileSnap = await getDoc(profileRef);
+                const studentName = profileSnap.exists() ? profileSnap.data().name : 'Unknown Student';
+
+                const historyRef = collection(db, `artifacts/${appId}/public/data/students/${studentIdToFetch}/reviewHistory`);
+                const snapshot = await getDocs(historyRef);
+                
+                if (snapshot.empty) {
+                    teacherError.textContent = 'No review data found for this student.';
+                    return;
+                }
+
+                const reviews = snapshot.docs.map(doc => doc.data());
+                
+                const now = new Date();
+                const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+                const weekStart = todayStart - (7 * 24 * 60 * 60 * 1000);
+                const monthStart = todayStart - (30 * 24 * 60 * 60 * 1000);
+
+                const todayReviews = reviews.filter(r => r.timestamp >= todayStart);
+                const weekReviews = reviews.filter(r => r.timestamp >= weekStart);
+                const monthReviews = reviews.filter(r => r.timestamp >= monthStart);
+
+                const calculateStats = (reviewArray) => {
+                    if (reviewArray.length === 0) return { count: 0, accuracy: '0%', speed: '0s' };
+                    const correctCount = reviewArray.filter(r => r.correct).length;
+                    const totalSpeed = reviewArray.reduce((sum, r) => sum + r.speed, 0);
+                    return {
+                        count: reviewArray.length,
+                        accuracy: ((correctCount / reviewArray.length) * 100).toFixed(1) + '%',
+                        speed: (totalSpeed / reviewArray.length / 1000).toFixed(2) + 's'
+                    };
+                };
+
+                const todayStats = calculateStats(todayReviews);
+                const weekStats = calculateStats(weekReviews);
+                const monthStats = calculateStats(monthReviews);
+
+                statsForStudentIdEl.textContent = `Showing Stats For: ${studentName} (${studentIdToFetch})`;
+                document.getElementById('stats-today-reviews').textContent = todayStats.count;
+                document.getElementById('stats-today-accuracy').textContent = todayStats.accuracy;
+                document.getElementById('stats-today-speed').textContent = todayStats.speed;
+                
+                document.getElementById('stats-week-reviews').textContent = weekStats.count;
+                document.getElementById('stats-week-accuracy').textContent = weekStats.accuracy;
+                document.getElementById('stats-week-speed').textContent = weekStats.speed;
+
+                document.getElementById('stats-month-reviews').textContent = monthStats.count;
+                document.getElementById('stats-month-accuracy').textContent = monthStats.accuracy;
+                document.getElementById('stats-month-speed').textContent = monthStats.speed;
+
+                statsDisplayArea.classList.remove('hidden');
+
+            } catch (error) {
+                console.error("Error fetching student data:", error);
+                teacherError.textContent = "Could not fetch data. Check the ID and try again.";
+            }
+        };
+
+
+        // --- EVENT LISTENERS ---
+        loginBtn.addEventListener('click', handleLogin);
+        logoutBtn.addEventListener('click', handleLogout);
+        deckButtons.addEventListener('click', (e) => {
+            if (e.target.classList.contains('deck-btn')) handleDeckSelection(e.target.dataset.deck);
+        });
+        changeDeckBtn.addEventListener('click', handleChangeDeck);
+        reviewTabBtn.addEventListener('click', () => switchTab('review'));
+        addTabBtn.addEventListener('click', () => switchTab('add'));
+        editTabBtn.addEventListener('click', () => switchTab('edit'));
+        showAnswerBtn.addEventListener('click', handleShowAnswer);
+        ratingButtons.addEventListener('click', (e) => {
+            if (e.target.classList.contains('rating-btn')) handleRating(e);
+        });
+        addCardForm.addEventListener('submit', handleAddCard);
+        
+        // Edit/Delete Listeners
+        cardListContainer.addEventListener('click', (e) => {
+            const target = e.target;
+            if(target.classList.contains('edit-card-btn')) {
+                openEditModal(target.dataset.id);
+            } else if (target.classList.contains('delete-card-btn')) {
+                openDeleteConfirm(target.dataset.id);
+            }
+        });
+        cancelEditBtn.addEventListener('click', closeEditModal);
+        saveEditBtn.addEventListener('click', handleSaveChanges);
+        cancelDeleteBtn.addEventListener('click', closeDeleteConfirm);
+        confirmDeleteBtn.addEventListener('click', handleDeleteCard);
+        
+        // Help Modal Listeners
+        helpIcon.addEventListener('click', () => helpModal.classList.remove('hidden'));
+        closeHelpBtn.addEventListener('click', () => helpModal.classList.add('hidden'));
+        helpModal.addEventListener('click', (e) => {
+            if (e.target === helpModal) helpModal.classList.add('hidden');
+        });
+
+        // Teacher Listeners
+        teacherAdminLink.addEventListener('click', () => {
+            loginOverlay.classList.add('hidden');
+            teacherCodeOverlay.classList.remove('hidden');
+        });
+        
+        backFromCodeBtn.addEventListener('click', () => {
+            teacherCodeError.textContent = '';
+            teacherCodeInput.value = '';
+            teacherCodeOverlay.classList.add('hidden');
+            loginOverlay.classList.remove('hidden');
+        });
+
+        submitTeacherCodeBtn.addEventListener('click', () => {
+            const enteredCode = teacherCodeInput.value.trim();
+            if (enteredCode === 'WynR29') {
+                teacherCodeError.textContent = '';
+                teacherCodeInput.value = '';
+                teacherCodeOverlay.classList.add('hidden');
+                showTeacherDashboard();
+            } else {
+                teacherCodeError.textContent = 'Incorrect class code.';
+            }
+        });
+
+        backToLoginScreenBtn.addEventListener('click', hideTeacherDashboard);
+        fetchStudentDataBtn.addEventListener('click', fetchAndDisplayStudentData);
+
+        // --- INITIALIZATION ---
+        (async () => {
+            await initializeFirebase();
+            const savedStudentId = sessionStorage.getItem('userLoginId');
+            if (savedStudentId) {
+                // To maintain session, we would need to also store the name.
+                // For simplicity, we require a fresh login each time the tab is closed.
+            }
+        })();
+    </script>
+</body>
+</html>
+
