@@ -1,27 +1,149 @@
+
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Mini Anki</title>
-  <style>
-    body { font-family: Arial; text-align: center; margin: 20px; }
-    #card { border: 1px solid #333; padding: 50px; width: 300px; margin: 20px auto; cursor: pointer; }
-    #controls { margin-top: 20px; }
-    button { margin: 5px; }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mini Anki — SRS & Stats</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <h1>Mini Anki</h1>
-  <div id="login">
-    <input type="text" id="userId" placeholder="Enter your ID">
-    <button onclick="loadDeck()">Start</button>
-  </div>
-  <div id="app" style="display:none;">
-    <div id="card" onclick="flipCard()">Click to Flip</div>
-    <div id="controls">
-      <button onclick="prevCard()">Prev</button>
-      <button onclick="nextCard()">Next</button>
+  <header class="topbar">
+    <div class="brand">Mini Anki</div>
+    <div class="spacer"></div>
+    <button id="themeToggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">🌗</button>
+  </header>
+
+  <main class="page">
+    <!-- Login Panel -->
+    <section id="login" class="panel">
+      <div class="panel-header">
+        <h1>Welcome</h1>
+        <p class="muted">Enter your special ID to load your decks</p>
+      </div>
+      <div class="panel-body">
+        <div class="input-row">
+          <input type="text" id="userId" placeholder="e.g. Mand001" autocomplete="off" />
+          <button id="startBtn" class="primary">Start →</button>
+        </div>
+        <p class="hint">Allowed IDs: <code>Mand001</code>, <code>Mand002</code>, <code>Mand003</code></p>
+      </div>
+    </section>
+
+    <!-- App Panel -->
+    <section id="app" class="panel" style="display:none;">
+      <div class="panel-header row">
+        <div>
+          <div class="muted small">Signed in as</div>
+          <div id="who" class="who"></div>
+        </div>
+        <div class="spacer"></div>
+        <div class="deck-row">
+          <label for="deckSelect" class="muted small">Deck</label>
+          <select id="deckSelect" class="select">
+            <option value="HSK2">HSK 2</option>
+            <option value="HSK3">HSK 3</option>
+            <option value="Full">Full</option>
+          </select>
+          <div class="muted small" id="dueCount" title="Cards due">0 due</div>
+          <button id="settingsBtn" class="icon-btn" title="Deck settings" aria-label="Deck settings">⚙️</button>
+        </div>
+        <button id="logoutBtn" class="text-btn">Sign out</button>
+      </div>
+
+      <div class="flashcard" id="flashcard" tabindex="0" aria-live="polite" aria-label="Flashcard. Click or press Space to flip">
+        <div class="flashcard-inner" id="flashcardInner">
+          <div class="flashcard-face front" id="cardFront">Front</div>
+          <div class="flashcard-face back" id="cardBack">Back</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="prevBtn" class="secondary" title="Previous (←)">← Prev</button>
+        <button id="flipBtn" class="primary" title="Flip (Space)">Flip ⤾</button>
+        <button id="nextBtn" class="secondary" title="Next (→)">Next →</button>
+      </div>
+
+      <div class="controls wrap">
+        <button id="againBtn" class="danger" title="1 = Again">Again</button>
+        <button id="hardBtn" class="warn" title="2 = Hard">Hard</button>
+        <button id="goodBtn" class="success" title="3 = Good">Good</button>
+        <button id="easyBtn" class="primary" title="4 = Easy">Easy</button>
+        <button id="endSessionBtn" class="outline" title="End session & save">End Session & Save</button>
+      </div>
+
+      <div class="progress-row">
+        <div id="progressText" class="muted">Card 1 of 1</div>
+        <div class="spacer"></div>
+        <div class="dots" id="dots"></div>
+      </div>
+
+      <div id="emptyState" class="empty hidden">
+        <h3>All caught up 🎉</h3>
+        <p class="muted">No cards are due right now for this deck. You can still browse cards with Prev/Next or add new cards via the ⚙️ settings.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span class="muted small">Keyboard: Space=Flip · ←/→=Prev/Next · 1=Again · 2=Hard · 3=Good · 4=Easy</span>
+  </footer>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="modalTitle">
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-card" role="document">
+      <div class="modal-header">
+        <h2 id="modalTitle">Deck Settings</h2>
+        <button id="closeSettings" class="icon-btn" aria-label="Close">✖</button>
+      </div>
+      <div class="tabs">
+        <button class="tab active" data-tab="manage">Manage Cards</button>
+        <button class="tab" data-tab="stats">Statistics</button>
+      </div>
+      <div class="modal-body">
+        <!-- Manage Cards Tab -->
+        <div class="tab-panel" id="tab-manage">
+          <div class="add-row">
+            <input type="text" id="newFront" placeholder="Front" />
+            <input type="text" id="newBack" placeholder="Back" />
+            <button id="addCardBtn" class="primary">Add</button>
+          </div>
+          <div id="cardsList" class="cards-list"></div>
+        </div>
+        <!-- Stats Tab -->
+        <div class="tab-panel hidden" id="tab-stats">
+          <div id="statsOverview" class="stats-grid"></div>
+          <h3>Last 5 Sessions</h3>
+          <div id="sessionsList" class="sessions-list"></div>
+          <h3>Streak & Time-on-Task</h3>
+          <div class="charts">
+            <div class="chart-block">
+              <div class="chart-header">
+                <span class="muted small">Current streak</span>
+                <strong id="streakNow">0 days</strong>
+                <span class="muted small">· Best</span>
+                <strong id="streakBest">0 days</strong>
+              </div>
+              <div class="chart bars" id="reviewsChart" aria-label="Reviews per day (last 14 days)"></div>
+              <div class="chart-legend">Reviews (last 14 days)</div>
+            </div>
+            <div class="chart-block">
+              <div class="chart-header">
+                <span class="muted small">Time on task (last 14 days)</span>
+              </div>
+              <div class="chart bars" id="timeChart" aria-label="Time on task per day (last 14 days)"></div>
+              <div class="chart-legend">Minutes per day</div>
+            </div>
+          </div>
+          <div class="stats-actions">
+            <button id="resetStatsBtn" class="danger">Reset Stats</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
+
   <script src="script.js"></script>
 </body>
 </html>
