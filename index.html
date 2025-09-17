@@ -9,7 +9,7 @@
 <body>
   <header class="topbar">
     <div class="spacer"></div>
-    <div class="brand right">Mand12 Cards</div>
+    <div id="brand" class="brand right" title="Mand12 Cards">Mand12 Cards</div>
   </header>
 
   <main class="page">
@@ -17,23 +17,23 @@
     <section id="login" class="panel">
       <div class="panel-header">
         <h1>Welcome</h1>
-        <p class="muted">Enter your ID to continue</p>
+        <p class="muted">Enter your student ID to continue</p>
       </div>
       <div class="panel-body">
         <div class="input-row">
-          <input type="text" id="userId" placeholder="Mand#### or WynR29" autocomplete="off" />
+          <input type="text" id="userId" placeholder="Mand####" autocomplete="off" />
           <button id="startBtn" class="primary">Continue →</button>
         </div>
-        <p class="muted small" style="margin-top:8px">Students: use your Mand#### ID · Teacher: use WynR29</p>
+        <p class="muted small" style="margin-top:8px">Students: use your Mand#### ID</p>
       </div>
     </section>
 
-    <!-- Teacher Panel -->
+    <!-- Teacher Panel (private) -->
     <section id="teacherPanel" class="panel" style="display:none;">
       <div class="panel-header row">
         <div>
           <div class="muted small">Signed in as</div>
-          <div id="whoTeacher" class="who">WynR29 (Teacher)</div>
+          <div id="whoTeacher" class="who">Teacher</div>
         </div>
         <div class="spacer"></div>
         <button id="logoutBtnTeacher" class="text-btn">Sign out</button>
@@ -52,7 +52,7 @@
 
       <div id="t-import" class="tab-panel hidden">
         <h3>Import HSK Decks from JSON</h3>
-        <p class="muted">Use the JSON exports converted from the That's Mandarin PDFs.</p>
+        <p class="muted">Use JSON exports converted from PDFs or other sources.</p>
         <div class="input-row">
           <input id="fileHsk2" type="file" accept="application/json" />
           <button id="btnImportHsk2" class="primary">Import HSK 2</button>
@@ -64,7 +64,7 @@
         <hr style="margin:16px 0; opacity:.3" />
         <h3>Paste & Convert</h3>
         <p class="muted small">Paste tab-separated: Chinese<TAB>Pinyin<TAB>English</p>
-        <textarea id="pasteBox" rows="8" style="width:100%;" placeholder="比如	bǐrú	for example"></textarea>
+        <textarea id="pasteBox" rows="8" style="width:100%;" placeholder="比如\tbǐrú\tfor example"></textarea>
         <div class="input-row">
           <button id="btnConvertHsk2" class="outline">Replace HSK 2 with pasted list</button>
           <button id="btnConvertHsk3" class="outline">Replace HSK 3 with pasted list</button>
@@ -125,6 +125,66 @@
       </div>
     </section>
   </main>
+
+  <!-- Settings Modal (user deck config) -->
+  <div id="settingsModal" class="modal" aria-hidden="true" role="dialog">
+    <div class="modal-backdrop"></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <strong>Deck Settings</strong>
+        <div>
+          <button id="exportDeckBtn" class="outline">Export JSON</button>
+          <label for="importDeckFile" class="outline" style="margin-left:6px; padding:8px 12px; display:inline-block; cursor:pointer;">Import JSON</label>
+          <input id="importDeckFile" type="file" accept="application/json" style="display:none;" />
+          <button id="closeSettingsBtn" class="text-btn" aria-label="Close">✕</button>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab active" data-tab="m-manage">Manage Cards</button>
+        <button class="tab" data-tab="m-stats">Stats</button>
+      </div>
+      <div class="modal-body">
+        <div id="m-manage" class="tab-panel">
+          <div class="add-row">
+            <input id="addHanzi" placeholder="Chinese (汉字)" />
+            <input id="addPinyin" placeholder="Pinyin (tone marks)" />
+            <div class="input-row">
+              <input id="addEnglish" placeholder="English" />
+              <button id="addCardBtn" class="primary">Add</button>
+            </div>
+          </div>
+          <div class="input-row" style="margin-bottom:10px; align-items:center;">
+            <label class="small"><input type="checkbox" id="addToToday" /> Add new cards to today's queue now</label>
+            <div class="spacer"></div>
+            <button id="resetProgressBtn" class="outline" title="Clear scheduling for this deck">Reset Progress</button>
+          </div>
+          <div id="cardsList" class="cards-list"></div>
+        </div>
+        <div id="m-stats" class="tab-panel hidden">
+          <div class="stats-grid" id="statsGrid"></div>
+          <div id="statsNote" class="muted small" style="margin-top:8px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Login Modal (hidden trigger) -->
+  <div id="adminModal" class="modal" aria-hidden="true" role="dialog">
+    <div class="modal-backdrop"></div>
+    <div class="modal-card" style="max-width:420px">
+      <div class="modal-header">
+        <strong>Admin Sign-in</strong>
+        <button id="closeAdminBtn" class="text-btn" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted small">Enter admin passcode.</p>
+        <div class="input-row">
+          <input id="adminCode" type="password" placeholder="Passcode" autocomplete="off" />
+          <button id="adminLoginBtn" class="primary">Sign in</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <footer class="footer">
     <span class="muted small">Keyboard: Space=Flip · 1=Again · 2=Hard · 3=Good · 4=Easy</span>

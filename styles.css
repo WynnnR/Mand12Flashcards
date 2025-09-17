@@ -57,10 +57,10 @@ button:active { transform: translateY(1px); }
 .tab.active { outline: 2px solid var(--primary-2); }
 .tab-panel.hidden { display:none; }
 .modal-body { padding: 16px; }
-.add-row { display:grid; grid-template-columns: 1fr 1fr auto; gap:8px; margin-bottom: 12px; }
+.add-row { display:grid; grid-template-columns: 1fr 1fr 1.6fr; gap:8px; margin-bottom: 12px; }
 .add-row input { padding: 10px 12px; border:1px solid rgba(255,255,255,.12); border-radius:10px; background: var(--secondary); color: var(--text); }
 .cards-list { display:grid; grid-template-columns: 1fr; gap:8px; max-height: 45vh; overflow:auto; }
-.card-item { display:grid; grid-template-columns: 1fr 1fr auto; gap:8px; align-items:center; background: var(--secondary); border:1px solid rgba(255,255,255,.06); border-radius:10px; padding:8px; }
+.card-item { display:grid; grid-template-columns: 1.2fr 1.6fr auto; gap:8px; align-items:center; background: var(--secondary); border:1px solid rgba(255,255,255,.06); border-radius:10px; padding:8px; }
 .card-text { padding:8px 10px; background: rgba(255,255,255,.02); border-radius:8px; border:1px solid rgba(255,255,255,.06); }
 .card-actions button { padding:8px 10px; }
 .stats-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
