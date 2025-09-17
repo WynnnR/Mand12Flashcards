@@ -11,7 +11,7 @@ const GOOD_WINDOW = [1,3];
 const EASY_WINDOW = [7,14]; 
 // Base decks 
 const baseDecks = { HSK2: [], HSK3: [], Full: [] }; // Full stays EMPTY 
-const fallbackHSK2 = [{"id": "阿\na", "front": "阿", "back": "a — auxiliary word"}, {"id": "爱情\nàiqíng", "front": "爱情", "back": "àiqíng — Love"}, {"id": "爱人\nài rén", "front": "爱人", "back": "ài rén — lover"}, {"id": "安静\nānjìng", "front": "安静", "back": "ānjìng — Be quiet"}, {"id": "安全\nānquán", "front": "安全", "back": "ānquán — security"}]; 
+const fallbackHSK2 = [{"id": "啊\na", "front": "啊", "back": "a — auxiliary word"}, {"id": "爱情\nàiqíng", "front": "爱情", "back": "àiqíng — Love"}, {"id": "爱人\nài rén", "front": "爱人", "back": "ài rén — lover"}, {"id": "安静\nānjìng", "front": "安静", "back": "ānjìng — Be quiet"}, {"id": "安全\nānquán", "front": "安全", "back": "ānquán — security"}]; 
 const fallbackHSK3 = [{"id": "爱心\nàixīn", "front": "爱心", "back": "àixīn — love"}, {"id": "安排\nānpái", "front": "安排", "back": "ānpái — arrange"}, {"id": "安装\nānzhuāng", "front": "安装", "back": "ānzhuāng — install"}, {"id": "按\nàn", "front": "按", "back": "àn — press; push; check; restrain"}, {"id": "按照\nànzhào", "front": "按照", "back": "ànzhào — according to"}]; 
 // --- State --- 
 let currentUser=null, currentDeckName=null, currentDeck=[]; 
@@ -166,11 +166,21 @@ function showCard(){
  rateRow.classList.add('hidden'); 
  const card = currentDeck[idx]; 
  cardFront.textContent = card.front; 
- cardBack.textContent = ''; // filled on flip 
+ cardBack.textContent = ''; // filled at flip time 
  cardStartMs = Date.now(); 
  updateDueLeft(); 
 } 
-function flipCard(){ if(isFlipped) return; isFlipped=true; flashcard.classList.add('show-back'); flipRow.classList.add('hidden'); rateRow.classList.remove('hidden'); } 
+function flipCard(){
+  if(isFlipped) return;
+  // Fill back text now, then show back immediately
+  const cid = (daily && daily.cursor<daily.queue.length) ? daily.queue[daily.cursor] : null;
+  if(cid){ const idx = idToIndex.get(cid); if(idx!=null){ const card = currentDeck[idx]; cardBack.textContent = card.back || ''; }}
+  isFlipped = true;
+  flashcard.classList.add('show-back');
+  flipRow.classList.add('hidden');
+  rateRow.classList.remove('hidden');
+}
+ 
 // --- Scheduling --- 
 function markCompletedToday(id){ if(!daily.completed.includes(id)) daily.completed.push(id); } 
 function advanceQueue(){ daily.cursor = Math.min(daily.cursor+1, daily.queue.length); setDaily(currentUser,currentDeckName,daily); } 
