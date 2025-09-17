@@ -1,4 +1,3 @@
-
  
 // --- Config --- 
 const ALLOWED_USERS = ["Mand1106","Mand1409","Mand1434","Mand1488","Mand1520","Mand2424","Mand2535","Mand2679","Mand2824","Mand3286","Mand3615","Mand4257","Mand4582","Mand4611","Mand4657","Mand4811","Mand5012","Mand5506","Mand5552","Mand5557","Mand6574","Mand7873","Mand7912","Mand7924","Mand8359","Mand9279","Mand9928","Mand9935"]; // Teacher not here; admin login is private 
@@ -11,7 +10,7 @@ const GOOD_WINDOW = [1,3];
 const EASY_WINDOW = [7,14]; 
 // Base decks 
 const baseDecks = { HSK2: [], HSK3: [], Full: [] }; // Full stays EMPTY 
-const fallbackHSK2 = [{"id": "啊\na", "front": "啊", "back": "a — auxiliary word"}, {"id": "爱情\nàiqíng", "front": "爱情", "back": "àiqíng — Love"}, {"id": "爱人\nài rén", "front": "爱人", "back": "ài rén — lover"}, {"id": "安静\nānjìng", "front": "安静", "back": "ānjìng — Be quiet"}, {"id": "安全\nānquán", "front": "安全", "back": "ānquán — security"}]; 
+const fallbackHSK2 = [{"id": "阿\na", "front": "阿", "back": "a — auxiliary word"}, {"id": "爱情\nàiqíng", "front": "爱情", "back": "àiqíng — Love"}, {"id": "爱人\nài rén", "front": "爱人", "back": "ài rén — lover"}, {"id": "安静\nānjìng", "front": "安静", "back": "ānjìng — Be quiet"}, {"id": "安全\nānquán", "front": "安全", "back": "ānquán — security"}]; 
 const fallbackHSK3 = [{"id": "爱心\nàixīn", "front": "爱心", "back": "àixīn — love"}, {"id": "安排\nānpái", "front": "安排", "back": "ānpái — arrange"}, {"id": "安装\nānzhuāng", "front": "安装", "back": "ānzhuāng — install"}, {"id": "按\nàn", "front": "按", "back": "àn — press; push; check; restrain"}, {"id": "按照\nànzhào", "front": "按照", "back": "ànzhào — according to"}]; 
 // --- State --- 
 let currentUser=null, currentDeckName=null, currentDeck=[]; 
@@ -172,7 +171,7 @@ function showCard(){
 } 
 function flipCard(){
   if(isFlipped) return;
-  // Fill back text now, then show back immediately
+  // Fill back text now
   const cid = (daily && daily.cursor<daily.queue.length) ? daily.queue[daily.cursor] : null;
   if(cid){ const idx = idToIndex.get(cid); if(idx!=null){ const card = currentDeck[idx]; cardBack.textContent = card.back || ''; }}
   isFlipped = true;
@@ -185,20 +184,54 @@ function flipCard(){
 function markCompletedToday(id){ if(!daily.completed.includes(id)) daily.completed.push(id); } 
 function advanceQueue(){ daily.cursor = Math.min(daily.cursor+1, daily.queue.length); setDaily(currentUser,currentDeckName,daily); } 
 function insertBackInQueue(id, minOff, maxOff){ const off=rngInt(minOff,maxOff); const ins=Math.min(daily.cursor+off, daily.queue.length); daily.queue.splice(ins,0,id); setDaily(currentUser,currentDeckName,daily); } 
+
+function applyRatingToSRS(id, rating) {
+  const todayISO = isoDate(new Date());
+  const map = getSrs(currentUser, currentDeckName);
+  const meta = map[id] || { ef: 2.5, ivl: 0, reps: 0, lapses: 0 };
+
+  // Counters
+  meta.reps = (meta.reps || 0) + 1;
+  if (rating === 'again') meta.lapses = (meta.lapses || 0) + 1;
+
+  // EF update (SM-2 inspired)
+  const q = rating === 'again' ? 2 : rating === 'hard' ? 3 : rating === 'good' ? 4 : 5;
+  let efNew = (meta.ef || 2.5) + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02));
+  meta.ef = Math.max(1.3, Math.min(2.8, efNew));
+
+  // Interval & due using your windows
+  if (rating === 'good') {
+    const d = rngInt(GOOD_WINDOW[0], GOOD_WINDOW[1]);
+    meta.ivl = d;
+    meta.dueISO = isoDate(addDays(todayStart(), d));
+  } else if (rating === 'easy') {
+    const d = rngInt(EASY_WINDOW[0], EASY_WINDOW[1]);
+    meta.ivl = d;
+    meta.dueISO = isoDate(addDays(todayStart(), d));
+  } else {
+    meta.ivl = 0;
+    meta.dueISO = todayISO;
+  }
+
+  map[id] = meta;
+  setSrs(currentUser, currentDeckName, map);
+}
+
 function updateSRSFuture(id, minDays, maxDays){ const map=getSrs(currentUser,currentDeckName); const meta=map[id]||{ef:2.5, ivl:0, reps:0, lapses:0}; const d=rngInt(minDays,maxDays); meta.ivl=d; meta.reps=(meta.reps||0)+1; meta.ef=Math.max(1.3,(meta.ef||2.5)); meta.dueISO=isoDate(addDays(todayStart(),d)); map[id]=meta; setSrs(currentUser,currentDeckName,map); } 
-function rate(r){ 
- const cid = (daily && daily.cursor<daily.queue.length) ? daily.queue[daily.cursor] : null; if(!cid) { showDoneForToday(); return; } 
- const now=Date.now(); const elapsed=cardStartMs? now-cardStartMs : 0; 
- session.reviewed += 1; 
- if(r==='again'||r==='hard') session.incorrect += 1; else session.correct += 1; 
- session.totalMs += elapsed; 
- advanceQueue(); 
- if (r==='again') insertBackInQueue(cid, AGAIN_OFFSET[0], AGAIN_OFFSET[1]); 
- else if (r==='hard') insertBackInQueue(cid, HARD_OFFSET[0], HARD_OFFSET[1]); 
- else if (r==='good') { markCompletedToday(cid); updateSRSFuture(cid, GOOD_WINDOW[0], GOOD_WINDOW[1]); } 
- else if (r==='easy') { markCompletedToday(cid); updateSRSFuture(cid, EASY_WINDOW[0], EASY_WINDOW[1]); } 
- showCard(); 
-} 
+function rate(r){
+  const cid = (daily && daily.cursor<daily.queue.length) ? daily.queue[daily.cursor] : null; if(!cid) { showDoneForToday(); return; }
+  const now=Date.now(); const elapsed=cardStartMs? now-cardStartMs : 0;
+  session.reviewed += 1;
+  if(r==='again'||r==='hard') session.incorrect += 1; else session.correct += 1;
+  session.totalMs += elapsed;
+  advanceQueue();
+  if (r==='again') { insertBackInQueue(cid, AGAIN_OFFSET[0], AGAIN_OFFSET[1]); applyRatingToSRS(cid, 'again'); }
+  else if (r==='hard') { insertBackInQueue(cid, HARD_OFFSET[0], HARD_OFFSET[1]); applyRatingToSRS(cid, 'hard'); }
+  else if (r==='good') { markCompletedToday(cid); applyRatingToSRS(cid, 'good'); }
+  else if (r==='easy') { markCompletedToday(cid); applyRatingToSRS(cid, 'easy'); }
+  showCard();
+}
+
 // --- Session & Navigation --- 
 function startSession(){ session={ startedAt:new Date().toISOString(), finishedAt:null, reviewed:0, correct:0, incorrect:0, totalMs:0 }; } 
 function maybeEndSession(save=true){ if(!session) return; if(session.reviewed>0){ session.finishedAt=new Date().toISOString(); if(save){ const list=getStats(currentUser,currentDeckName); list.push(session); setStats(currentUser,currentDeckName, list.slice(-400)); }} session=null; } 
@@ -249,16 +282,42 @@ function deleteCard(id){ if(!confirm('Delete this card?')) return; const idx=idT
  if(daily){ daily.queue=daily.queue.filter(x=>x!==id); daily.completed=daily.completed.filter(x=>x!==id); if(daily.cursor>daily.queue.length) daily.cursor=daily.queue.length; setDaily(currentUser,currentDeckName,daily); } 
  onDeckChanged(); } 
 function renderManage(){ cardsList.innerHTML=''; const frag=document.createDocumentFragment(); currentDeck.forEach(c=>{ const row=document.createElement('div'); row.className='card-item'; const f=document.createElement('div'); f.className='card-text'; f.textContent=c.front; const b=document.createElement('div'); b.className='card-text'; b.textContent=c.back; const act=document.createElement('div'); act.className='card-actions'; const e=document.createElement('button'); e.textContent='Edit'; e.className='outline'; e.addEventListener('click', ()=>editCard(c.id)); const d=document.createElement('button'); d.textContent='Delete'; d.className='outline'; d.addEventListener('click', ()=>deleteCard(c.id)); act.appendChild(e); act.appendChild(d); row.appendChild(f); row.appendChild(b); row.appendChild(act); frag.appendChild(row); }); cardsList.appendChild(frag); } 
-function renderStats(){ statsGrid.innerHTML=''; const list=getStats(currentUser,currentDeckName); const totalReviews=list.reduce((a,s)=>a+s.reviewed,0); const totalCorrect=list.reduce((a,s)=>a+s.correct,0); const totalMs=list.reduce((a,s)=>a+s.totalMs,0); const acc = totalReviews? Math.round((totalCorrect/totalReviews)*100) : 0; const avgTime = totalReviews? (totalMs/totalReviews/1000).toFixed(1)+'s' : '0.0s'; 
- function addStat(label,value){ const d=document.createElement('div'); d.className='stat'; d.innerHTML=`<div class=\"label\">${label}</div><div class=\"value\">${value}</div>`; statsGrid.appendChild(d); } 
- addStat('Cards in deck', String(currentDeck.length)); 
- addStat('Due left today', daily? Math.max(0,daily.queue.length-daily.cursor) : 0); 
- addStat('Total reviews', String(totalReviews)); 
- addStat('Accuracy', acc+'%'); 
- addStat('Avg time/card', avgTime); 
- const days=new Set(list.map(s=> (s.finishedAt||s.startedAt||'').slice(0,10))); addStat('Active days', String(days.size)); 
- statsNote.textContent = list.length? '' : 'No review history yet.'; 
-} 
+
+function renderStats(){
+  statsGrid.innerHTML='';
+  const list=getStats(currentUser,currentDeckName);
+  const totalReviews=list.reduce((a,s)=>a+(s.reviewed||0),0); // includes repeats
+  const totalCorrect=list.reduce((a,s)=>a+(s.correct||0),0);
+  const totalMs=list.reduce((a,s)=>a+(s.totalMs||0),0);
+  const acc = totalReviews? Math.round((totalCorrect/totalReviews)*100) : 0;
+  const avgTime = totalReviews? (totalMs/totalReviews/1000).toFixed(1)+'s' : '0.0s';
+
+  const srs=getSrs(currentUser,currentDeckName);
+  const ids=Object.keys(srs);
+  const seenCount=ids.length;
+  const efVals=ids.map(id=> (srs[id].ef ?? 2.5));
+  const avgEf = efVals.length? (efVals.reduce((a,b)=>a+b,0)/efVals.length) : 0;
+  const masteryPct = efVals.length? Math.round((Math.min(2.8, Math.max(1.3, avgEf)) - 1.3) / (2.8 - 1.3) * 100) : 0;
+  const matureCount = ids.filter(id => (srs[id].ivl || 0) >= 21).length;
+  const maturePct = seenCount? Math.round(matureCount/seenCount*100) : 0;
+
+  function addStat(label,value){ const d=document.createElement('div'); d.className='stat'; d.innerHTML=`<div class="label">${label}</div><div class="value">${value}</div>`; statsGrid.appendChild(d); }
+
+  addStat('Cards in deck', String(currentDeck.length));
+  addStat('Due left today', daily? Math.max(0,daily.queue.length-daily.cursor) : 0);
+  addStat('Total reviews (incl. repeats)', String(totalReviews));
+  addStat('Unique cards seen', String(seenCount));
+  addStat('Accuracy', acc+'%');
+  addStat('Avg time/card', avgTime);
+  addStat('Avg ease (EF)', efVals.length? avgEf.toFixed(2) : '—');
+  addStat('Mastery (EF→%)', efVals.length? (masteryPct+'%') : '—');
+  addStat('Mature cards (≥21d)', seenCount? `${matureCount}/${seenCount} (${maturePct}%)` : '—');
+
+  const days=new Set(list.map(s=> (s.finishedAt||s.startedAt||'').slice(0,10)));
+  addStat('Active days', String(days.size));
+  statsNote.textContent = list.length? '' : 'No review history yet.';
+}
+
 exportDeckBtn.addEventListener('click', ()=>{ const data=JSON.stringify(currentDeck,null,2); const blob=new Blob([data], {type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${currentDeckName.toLowerCase()}_deck.json`; a.click(); URL.revokeObjectURL(a.href); }); 
 importDeckFile.addEventListener('change', async (e)=>{ const f=e.target.files?.[0]; if(!f) return; try{ const txt=await f.text(); const arr=JSON.parse(txt); if(!Array.isArray(arr)) throw new Error('Invalid'); currentDeck=arr; onDeckChanged(); alert('Deck replaced for this user.'); }catch(err){ alert('Invalid JSON'); } 
 }); 
