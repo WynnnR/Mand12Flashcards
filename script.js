@@ -11,8 +11,8 @@ const EASY_WINDOW  = [7,14];
 
 // Base decks
 const baseDecks = { HSK2: [], HSK3: [], Full: [] }; // Full stays EMPTY
-const fallbackHSK2 = [{"id": "比如|bǐrú", "front": "比如", "back": "bǐrú — for example"}, {"id": "或者|huòzhě", "front": "或者", "back": "huòzhě — or"}, {"id": "但是|dànshì", "front": "但是", "back": "dànshì — but"}, {"id": "必须|bìxū", "front": "必须", "back": "bìxū — must"}, {"id": "应该|yīnggāi", "front": "应该", "back": "yīnggāi — should"}];
-const fallbackHSK3 = [{"id": "变化|biànhuà", "front": "变化", "back": "biànhuà — change; to change"}, {"id": "成功|chénggōng", "front": "成功", "back": "chénggōng — success"}, {"id": "方式|fāngshì", "front": "方式", "back": "fāngshì — way; method"}, {"id": "关系|guānxi", "front": "关系", "back": "guānxi — relationship"}, {"id": "过程|guòchéng", "front": "过程", "back": "guòchéng — process"}];
+const fallbackHSK2 = [{"id": "啊|a", "front": "啊", "back": "a — auxiliary word"}, {"id": "爱情|àiqíng", "front": "爱情", "back": "àiqíng — Love"}, {"id": "爱人|ài rén", "front": "爱人", "back": "ài rén — lover"}, {"id": "安静|ānjìng", "front": "安静", "back": "ānjìng — Be quiet"}, {"id": "安全|ānquán", "front": "安全", "back": "ānquán — security"}];
+const fallbackHSK3 = [{"id": "爱心|àixīn", "front": "爱心", "back": "àixīn — love"}, {"id": "安排|ānpái", "front": "安排", "back": "ānpái — arrange"}, {"id": "安装|ānzhuāng", "front": "安装", "back": "ānzhuāng — install"}, {"id": "按|àn", "front": "按", "back": "àn — press; push; check; restrain"}, {"id": "按照|ànzhào", "front": "按照", "back": "ànzhào — according to"}];
 
 // --- State ---
 let currentUser=null, currentDeckName=null, currentDeck=[];
@@ -221,7 +221,7 @@ function logout(){ maybeEndSession(true); currentUser=null; teacherMode=false; i
 function showTeacher(){ loginSection.style.display='none'; deckSelectPanel.style.display='none'; reviewPanel.style.display='none'; teacherPanel.style.display='block'; renderTeacher(); }
 
 // --- Teacher Dashboard ---
-function stat(label,value){ const d=document.createElement('div'); d.className='stat'; d.innerHTML=`<div class="label">${label}</div><div class="value">${value}</div>`; return d; }
+function stat(label,value){ const d=document.createElement('div'); d.className='stat'; d.innerHTML=`<div class=\"label\">${label}</div><div class=\"value\">${value}</div>`; return d; }
 function msToReadable(ms){ if(!ms) return '0.0s'; return (ms/1000).toFixed(1)+'s'; }
 function pct(n,d){ return d>0? Math.round((n/d)*100) : 0; }
 function renderTeacher(){ const users = ALLOWED_USERS.filter(u=>/^Mand\d{4}$/.test(u)); let totalReviewed=0,totalCorrect=0,totalMs=0,days=new Set(); for(const u of users){ for(const deck of ['HSK2','HSK3']){ const ss=getStats(u,deck); for(const s of ss){ totalReviewed+=s.reviewed; totalCorrect+=s.correct; totalMs+=s.totalMs; const t=new Date(s.finishedAt||s.startedAt); days.add(isoDate(t)); } } } teacherSummary.innerHTML=''; teacherSummary.appendChild(stat('Total reviews', String(totalReviewed))); teacherSummary.appendChild(stat('Accuracy', pct(totalCorrect,totalReviewed)+'%')); teacherSummary.appendChild(stat('Active days', String(days.size)));
@@ -277,7 +277,7 @@ function deleteCard(id){ if(!confirm('Delete this card?')) return; const idx=idT
 function renderManage(){ cardsList.innerHTML=''; const frag=document.createDocumentFragment(); currentDeck.forEach(c=>{ const row=document.createElement('div'); row.className='card-item'; const f=document.createElement('div'); f.className='card-text'; f.textContent=c.front; const b=document.createElement('div'); b.className='card-text'; b.textContent=c.back; const act=document.createElement('div'); act.className='card-actions'; const e=document.createElement('button'); e.textContent='Edit'; e.className='outline'; e.addEventListener('click', ()=>editCard(c.id)); const d=document.createElement('button'); d.textContent='Delete'; d.className='outline'; d.addEventListener('click', ()=>deleteCard(c.id)); act.appendChild(e); act.appendChild(d); row.appendChild(f); row.appendChild(b); row.appendChild(act); frag.appendChild(row); }); cardsList.appendChild(frag); }
 
 function renderStats(){ statsGrid.innerHTML=''; const list=getStats(currentUser,currentDeckName); const totalReviews=list.reduce((a,s)=>a+s.reviewed,0); const totalCorrect=list.reduce((a,s)=>a+s.correct,0); const totalMs=list.reduce((a,s)=>a+s.totalMs,0); const acc = totalReviews? Math.round((totalCorrect/totalReviews)*100) : 0; const avgTime = totalReviews? (totalMs/totalReviews/1000).toFixed(1)+'s' : '0.0s';
-  function addStat(label,value){ const d=document.createElement('div'); d.className='stat'; d.innerHTML=`<div class="label">${label}</div><div class="value">${value}</div>`; statsGrid.appendChild(d); }
+  function addStat(label,value){ const d=document.createElement('div'); d.className='stat'; d.innerHTML=`<div class=\"label\">${label}</div><div class=\"value\">${value}</div>`; statsGrid.appendChild(d); }
   addStat('Cards in deck', String(currentDeck.length));
   addStat('Due left today', daily? Math.max(0,daily.queue.length-daily.cursor) : 0);
   addStat('Total reviews', String(totalReviews));
