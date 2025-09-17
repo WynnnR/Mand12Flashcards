@@ -34,8 +34,7 @@ const backToDecks=document.getElementById('backToDecks');
 const deckNameEl=document.getElementById('deckName'); 
 const settingsBtn=document.getElementById('settingsBtn'); 
 const dueCountEl=document.getElementById('dueCount'); 
-const flashcard=document.getElementById('flashcard');
-const flashInner = document.querySelector('.flashcard-inner'); 
+const flashcard=document.getElementById('flashcard'); 
 const cardFront=document.getElementById('cardFront'); 
 const cardBack=document.getElementById('cardBack'); 
 const flipRow=document.getElementById('flipRow'); 
@@ -146,7 +145,7 @@ function ensureDailyQueue(){
 // --- UI --- 
 function updateDueLeft(){ const left = daily? Math.max(0, daily.queue.length - daily.cursor) : 0; dueCountEl.textContent = `${left} left`; } 
 function showDoneForToday(){ 
- isFlipped=false; flashcard.classList.remove('flipped'); 
+ isFlipped=false; flashcard.classList.remove('show-back'); 
  flipRow.classList.add('hidden'); 
  rateRow.classList.add('hidden'); 
  emptyState.classList.remove('hidden'); 
@@ -162,25 +161,16 @@ function showCard(){
  daily.cursor++; setDaily(currentUser,currentDeckName,daily); return showCard(); 
  } 
  emptyState.classList.add('hidden'); 
- isFlipped=false; flashcard.classList.remove('flipped'); 
+ isFlipped=false; flashcard.classList.remove('show-back'); 
  flipRow.classList.remove('hidden'); 
  rateRow.classList.add('hidden'); 
  const card = currentDeck[idx]; 
  cardFront.textContent = card.front; 
- cardBack.textContent = card.back; 
+ cardBack.textContent = ''; // filled on flip 
  cardStartMs = Date.now(); 
  updateDueLeft(); 
 } 
-function flipCard(){
-  if(isFlipped) return;
-  // Fill back text at flip time to avoid early glimpse
-  const cid = (daily && daily.cursor<daily.queue.length) ? daily.queue[daily.cursor] : null;
-  if(cid){ const idx = idToIndex.get(cid); if(idx!=null){ const card=currentDeck[idx]; cardBack.textContent = card.back || ''; } }
-  isFlipped=true;
-  flashcard.classList.add('flipped');
-  flipRow.classList.add('hidden');
-  rateRow.classList.remove('hidden');
-} 
+function flipCard(){ if(isFlipped) return; isFlipped=true; flashcard.classList.add('show-back'); flipRow.classList.add('hidden'); rateRow.classList.remove('hidden'); } 
 // --- Scheduling --- 
 function markCompletedToday(id){ if(!daily.completed.includes(id)) daily.completed.push(id); } 
 function advanceQueue(){ daily.cursor = Math.min(daily.cursor+1, daily.queue.length); setDaily(currentUser,currentDeckName,daily); } 
@@ -207,7 +197,7 @@ function login(){ const uid=userIdInput.value.trim(); if(!ALLOWED_USERS.includes
 function logout(){ maybeEndSession(true); currentUser=null; teacherMode=false; impersonating=null; loginSection.style.display='block'; deckSelectPanel.style.display='none'; reviewPanel.style.display='none'; teacherPanel.style.display='none'; userIdInput.focus(); } 
 function showTeacher(){ loginSection.style.display='none'; deckSelectPanel.style.display='none'; reviewPanel.style.display='none'; teacherPanel.style.display='block'; renderTeacher(); } 
 // --- Teacher Dashboard --- 
-function stat(label,value){ const d=document.createElement('div'); d.className='stat'; d.innerHTML=`<div class=\"label\">${label}</div><div class=\"value\">${value}</div>`; return d; } 
+function stat(label,value){ const d=document.createElement('div'); d.className='stat'; d.innerHTML=`<div class="label">${label}</div><div class="value">${value}</div>`; return d; } 
 function msToReadable(ms){ if(!ms) return '0.0s'; return (ms/1000).toFixed(1)+'s'; } 
 function pct(n,d){ return d>0? Math.round((n/d)*100) : 0; } 
 function renderTeacher(){ const users = ALLOWED_USERS.filter(u=>/^Mand\d{4}$/.test(u)); let totalReviewed=0,totalCorrect=0,totalMs=0,days=new Set(); for(const u of users){ for(const deck of ['HSK2','HSK3']){ const ss=getStats(u,deck); for(const s of ss){ totalReviewed+=s.reviewed; totalCorrect+=s.correct; totalMs+=s.totalMs; const t=new Date(s.finishedAt||s.startedAt); days.add(isoDate(t)); } } } teacherSummary.innerHTML=''; teacherSummary.appendChild(stat('Total reviews', String(totalReviewed))); teacherSummary.appendChild(stat('Accuracy', pct(totalCorrect,totalReviewed)+'%')); teacherSummary.appendChild(stat('Active days', String(days.size))); 
