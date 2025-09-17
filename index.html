@@ -8,11 +8,12 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">Mand12 Cards</div>
     <div class="spacer"></div>
-    <button id="themeToggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">🌗</button>
+    <div class="brand right">Mand12 Cards</div>
   </header>
+
   <main class="page">
+    <!-- Login -->
     <section id="login" class="panel">
       <div class="panel-header">
         <h1>Welcome</h1>
@@ -20,11 +21,58 @@
       </div>
       <div class="panel-body">
         <div class="input-row">
-          <input type="text" id="userId" placeholder="Mand####" autocomplete="off" />
+          <input type="text" id="userId" placeholder="Mand#### or WynR29" autocomplete="off" />
           <button id="startBtn" class="primary">Continue →</button>
+        </div>
+        <p class="muted small" style="margin-top:8px">Students: use your Mand#### ID · Teacher: use WynR29</p>
+      </div>
+    </section>
+
+    <!-- Teacher Panel -->
+    <section id="teacherPanel" class="panel" style="display:none;">
+      <div class="panel-header row">
+        <div>
+          <div class="muted small">Signed in as</div>
+          <div id="whoTeacher" class="who">WynR29 (Teacher)</div>
+        </div>
+        <div class="spacer"></div>
+        <button id="logoutBtnTeacher" class="text-btn">Sign out</button>
+      </div>
+
+      <div class="tabs" style="margin-bottom:8px">
+        <button class="tab active" data-tab="t-dashboard">Dashboard</button>
+        <button class="tab" data-tab="t-import">Import Decks</button>
+      </div>
+
+      <div id="t-dashboard" class="tab-panel">
+        <div id="teacherSummary" class="stats-grid"></div>
+        <h3>Students</h3>
+        <div id="studentsList" class="sessions-list"></div>
+      </div>
+
+      <div id="t-import" class="tab-panel hidden">
+        <h3>Import HSK Decks from JSON</h3>
+        <p class="muted">Use the JSON exports converted from the That's Mandarin PDFs.</p>
+        <div class="input-row">
+          <input id="fileHsk2" type="file" accept="application/json" />
+          <button id="btnImportHsk2" class="primary">Import HSK 2</button>
+        </div>
+        <div class="input-row" style="margin-top:8px">
+          <input id="fileHsk3" type="file" accept="application/json" />
+          <button id="btnImportHsk3" class="primary">Import HSK 3</button>
+        </div>
+        <hr style="margin:16px 0; opacity:.3" />
+        <h3>Paste & Convert</h3>
+        <p class="muted small">Paste tab-separated: Chinese<TAB>Pinyin<TAB>English</p>
+        <textarea id="pasteBox" rows="8" style="width:100%;" placeholder="比如	bǐrú	for example"></textarea>
+        <div class="input-row">
+          <button id="btnConvertHsk2" class="outline">Replace HSK 2 with pasted list</button>
+          <button id="btnConvertHsk3" class="outline">Replace HSK 3 with pasted list</button>
         </div>
       </div>
     </section>
+
+    <!-- Deck select -->
     <section id="deckSelectPanel" class="panel" style="display:none;">
       <div class="panel-header row">
         <div>
@@ -37,9 +85,11 @@
       <div class="deck-grid">
         <button class="deck-btn" data-deck="HSK2"><span class="title">HSK 2</span></button>
         <button class="deck-btn" data-deck="HSK3"><span class="title">HSK 3</span></button>
-        <button class="deck-btn full" data-deck="Full"><span class="title">Full</span></button>
+        <button class="deck-btn full" data-deck="Full"><span class="title">Full (empty)</span></button>
       </div>
     </section>
+
+    <!-- Review -->
     <section id="review" class="panel" style="display:none;">
       <div class="panel-header row">
         <button id="backToDecks" class="text-btn">← Decks</button>
@@ -49,15 +99,18 @@
         <div class="muted small" id="dueCount" title="Cards remaining today">0 left</div>
         <button id="settingsBtn" class="icon-btn" title="Deck settings" aria-label="Deck settings">⚙️</button>
       </div>
+
       <div class="flashcard" id="flashcard" tabindex="0" aria-live="polite" aria-label="Flashcard. Click or press Space to flip">
         <div class="flashcard-inner" id="flashcardInner">
           <div class="flashcard-face front" id="cardFront">Front</div>
           <div class="flashcard-face back" id="cardBack">Back</div>
         </div>
       </div>
-      <div class="controls" id="flipRow">
+
+      <div class="controls center wrap" id="flipRow">
         <button id="flipBtn" class="primary lg" title="Flip (Space)">Flip ⤾</button>
       </div>
+
       <div class="controls center wrap hidden" id="rateRow">
         <button id="againBtn" class="rate rate-again xl" title="1 = Again">Again</button>
         <button id="hardBtn"  class="rate rate-hard  xl" title="2 = Hard">Hard</button>
@@ -65,66 +118,18 @@
         <button id="easyBtn"  class="rate rate-easy  xl" title="4 = Easy">Easy</button>
         <button id="endSessionBtn" class="outline" title="End session & save">End Session & Save</button>
       </div>
+
       <div id="emptyState" class="empty hidden">
         <h3>All caught up 🎉</h3>
         <p class="muted">You're done for today for this deck. Come back tomorrow, add new cards, or view stats via ⚙️.</p>
       </div>
     </section>
   </main>
+
   <footer class="footer">
     <span class="muted small">Keyboard: Space=Flip · 1=Again · 2=Hard · 3=Good · 4=Easy</span>
   </footer>
-  <div id="settingsModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="modalTitle">
-    <div class="modal-backdrop" id="modalBackdrop"></div>
-    <div class="modal-card" role="document">
-      <div class="modal-header">
-        <h2 id="modalTitle">Deck Settings</h2>
-        <button id="closeSettings" class="icon-btn" aria-label="Close">✖</button>
-      </div>
-      <div class="tabs">
-        <button class="tab active" data-tab="manage">Manage Cards</button>
-        <button class="tab" data-tab="stats">Statistics</button>
-      </div>
-      <div class="modal-body">
-        <div class="tab-panel" id="tab-manage">
-          <div class="add-row">
-            <input type="text" id="newFront" placeholder="Front" />
-            <input type="text" id="newBack" placeholder="Back" />
-            <button id="addCardBtn" class="primary">Add</button>
-          </div>
-          <div id="cardsList" class="cards-list"></div>
-        </div>
-        <div class="tab-panel hidden" id="tab-stats">
-          <div id="statsOverview" class="stats-grid"></div>
-          <h3>Last 5 Sessions</h3>
-          <div id="sessionsList" class="sessions-list"></div>
-          <h3>Streak & Time-on-Task</h3>
-          <div class="charts">
-            <div class="chart-block">
-              <div class="chart-header">
-                <span class="muted small">Current streak</span>
-                <strong id="streakNow">0 days</strong>
-                <span class="muted small">· Best</span>
-                <strong id="streakBest">0 days</strong>
-              </div>
-              <div class="chart bars" id="reviewsChart" aria-label="Reviews per day (last 14 days)"></div>
-              <div class="chart-legend">Reviews (last 14 days)</div>
-            </div>
-            <div class="chart-block">
-              <div class="chart-header">
-                <span class="muted small">Time on task (last 14 days)</span>
-              </div>
-              <div class="chart bars" id="timeChart" aria-label="Time on task per day (last 14 days)"></div>
-              <div class="chart-legend">Minutes per day</div>
-            </div>
-          </div>
-          <div class="stats-actions">
-            <button id="resetStatsBtn" class="danger">Reset Stats</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+
   <script src="script.js"></script>
 </body>
 </html>
