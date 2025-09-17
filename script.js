@@ -1,9 +1,17 @@
 
 // --- Config ---
 const ALLOWED_USERS = ["Mand1106","Mand1409","Mand1434","Mand1488","Mand1520","Mand2424","Mand2535","Mand2679","Mand2824","Mand3286","Mand3547","Mand3615","Mand4257","Mand4527","Mand4582","Mand4611","Mand4657","Mand4811","Mand5012","Mand5506","Mand5552","Mand5557","Mand6574","Mand7873","Mand7912","Mand7924","Mand8359","Mand9279","Mand9928","Mand9935"];
-const LS_PREFIX = 'minianki';
-const DAILY_NEW_LIMIT = 20;      // max new cards per day
-const DAILY_TOTAL_LIMIT = 50;    // max total (new + seen) per day
+const LS_PREFIX = 'mand12';
+const DAILY_NEW_LIMIT = 20;
+const DAILY_TOTAL_LIMIT = 50;
+// Intra-day reinsertion offsets (card positions later)
+const AGAIN_OFFSET = [2,5];
+const HARD_OFFSET  = [6,12]; // stickier HARD
+// Inter-day review windows (days from today)
+const GOOD_WINDOW  = [1,3];
+const EASY_WINDOW  = [7,14]; // Easy pushes out more
+
+// Base decks
 const baseDecks = {
   HSK2: [
     {id:"什么时候|shénme shíhou", front:"\u4ec0\u4e48\u65f6\u5019", back:"sh\u00e9nme sh\u00edhou \u2014 when"},
@@ -152,56 +160,201 @@ const baseDecks = {
 (function buildFull(){
   const seen = new Set();
   for (const d of [baseDecks.HSK2, baseDecks.HSK3]){
-    for (const c of d){ if (!seen.has(c.id)) { seen.add(c.id); baseDecks.Full.push({...c}); } }
+    for (const c of d) if (!seen.has(c.id)) { seen.add(c.id); baseDecks.Full.push({...c}); }
   }
 })();
+
+// --- State & DOM ---
 let currentUser=null, currentDeckName=null, currentDeck=[]; let idToIndex=new Map(); let isFlipped=false; let daily=null; let cardStartMs=null; let session=null;
 const loginSection=document.getElementById('login'); const deckSelectPanel=document.getElementById('deckSelectPanel'); const reviewPanel=document.getElementById('review');
-const userIdInput=document.getElementById('userId'); const startBtn=document.getElementById('startBtn'); const whoEl=document.getElementById('who'); const logoutBtn=document.getElementById('logoutBtn'); const allowedList=document.getElementById('allowedList');
+const userIdInput=document.getElementById('userId'); const startBtn=document.getElementById('startBtn'); const whoEl=document.getElementById('who'); const logoutBtn=document.getElementById('logoutBtn');
 const deckButtons=document.querySelectorAll('.deck-btn'); const backToDecks=document.getElementById('backToDecks'); const deckNameEl=document.getElementById('deckName'); const settingsBtn=document.getElementById('settingsBtn'); const dueCountEl=document.getElementById('dueCount');
 const flashcard=document.getElementById('flashcard'); const cardFront=document.getElementById('cardFront'); const cardBack=document.getElementById('cardBack');
 const flipRow=document.getElementById('flipRow'); const rateRow=document.getElementById('rateRow'); const flipBtn=document.getElementById('flipBtn'); const againBtn=document.getElementById('againBtn'); const hardBtn=document.getElementById('hardBtn'); const goodBtn=document.getElementById('goodBtn'); const easyBtn=document.getElementById('easyBtn'); const endSessionBtn=document.getElementById('endSessionBtn');
-const progressText=document.getElementById('progressText'); const dots=document.getElementById('dots'); const themeToggle=document.getElementById('themeToggle'); const emptyState=document.getElementById('emptyState');
-const settingsModal=document.getElementById('settingsModal'); const closeSettings=document.getElementById('closeSettings'); const tabs=document.querySelectorAll('.tab'); const tabManage=document.getElementById('tab-manage'); const tabStats=document.getElementById('tab-stats'); const newFront=document.getElementById('newFront'); const newBack=document.getElementById('newBack'); const addCardBtn=document.getElementById('addCardBtn'); const cardsList=document.getElementById('cardsList'); const statsOverview=document.getElementById('statsOverview'); const sessionsList=document.getElementById('sessionsList'); const resetStatsBtn=document.getElementById('resetStatsBtn'); const streakNowEl=document.getElementById('streakNow'); const streakBestEl=document.getElementById('streakBest'); const reviewsChart=document.getElementById('reviewsChart'); const timeChart=document.getElementById('timeChart');
-function lsKey(...parts){ return ['minianki',...parts].join(':'); } function deepClone(x){ return JSON.parse(JSON.stringify(x)); }
-function getDeckOverrides(user){ const raw=localStorage.getItem(lsKey('decks', user)); return raw?JSON.parse(raw):{}; } function setDeckOverrides(user,overrides){ localStorage.setItem(lsKey('decks', user), JSON.stringify(overrides)); }
-function getUserDeck(user, name){ const o=getDeckOverrides(user); const src=Array.isArray(o[name])?o[name]:baseDecks[name]; return deepClone(src); } function saveUserDeck(user, name, cards){ const o=getDeckOverrides(user); o[name]=cards; setDeckOverrides(user,o); }
-function getSrsMap(user,name){ const raw=localStorage.getItem(lsKey('srs',user,name)); return raw?JSON.parse(raw):{}; } function saveSrsMap(user,name,map){ localStorage.setItem(lsKey('srs',user,name), JSON.stringify(map)); }
-function getDaily(user,name){ const raw=localStorage.getItem(lsKey('daily',user,name)); return raw?JSON.parse(raw):null; } function saveDaily(user,name,obj){ localStorage.setItem(lsKey('daily',user,name), JSON.stringify(obj)); }
-function getStats(user,name){ const raw=localStorage.getItem(lsKey('stats',user,name)); return raw?JSON.parse(raw):[]; } function saveStats(user,name,arr){ localStorage.setItem(lsKey('stats',user,name), JSON.stringify(arr)); }
-function todayLocalStart(d=new Date()){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()); } function addDays(d,days){ const nd=new Date(d); nd.setDate(nd.getDate()+days); return nd; } function isoDate(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0,10); }
-function shuffle(a){ const b=a.slice(); for(let i=b.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [b[i],b[j]]=[b[j],b[i]]; } return b; }
-function updateSRS(s,rating){ if(!s.ef) s.ef=2.5; if(!s.ivl) s.ivl=0; if(!s.reps) s.reps=0; if(!s.lapses) s.lapses=0; let q=0; if(rating==='again') q=0; else if(rating==='hard') q=3; else if(rating==='good') q=4; else if(rating==='easy') q=5; const today=todayLocalStart(); if(q<3){ s.reps=0; s.lapses+=1; s.ivl=1; } else { if(s.reps===0) s.ivl=1; else if(s.reps===1) s.ivl=6; else s.ivl=Math.max(1, Math.round(s.ivl*s.ef)); s.reps+=1; s.ef=s.ef+(0.1-(5-q)*(0.08+(5-q)*0.02)); if(s.ef<1.3) s.ef=1.3; if(rating==='hard') s.ivl=Math.max(1, Math.round(s.ivl*0.85)); if(rating==='easy') s.ivl=Math.round(s.ivl*1.3); } s.dueISO=isoDate(addDays(today, s.ivl)); return s; }
-function ensureDailyQueue(){ const todayISO=isoDate(new Date()); daily=getDaily(currentUser, currentDeckName); if(daily && daily.dateISO===todayISO){ const idSet=new Set(currentDeck.map(c=>c.id)); daily.queue=daily.queue.filter(id=>idSet.has(id)); if(daily.cursor>daily.queue.length) daily.cursor=daily.queue.length; saveDaily(currentUser,currentDeckName,daily); return; } const srs=getSrsMap(currentUser,currentDeckName); const todayKey=todayISO; const newIds=[], reviewDue=[], reviewNotDue=[]; for(const c of currentDeck){ const meta=srs[c.id]; if(!meta){ newIds.push(c.id); continue; } const due=meta.dueISO||'1970-01-01'; if(due<=todayKey) reviewDue.push(c.id); else reviewNotDue.push(c.id); } const newShuf=shuffle(newIds), revDueShuf=shuffle(reviewDue), revNotDueShuf=shuffle(reviewNotDue); const chooseNew=Math.min(20,newShuf.length); const chooseRevDue=Math.min(revDueShuf.length, Math.max(0, 50-chooseNew)); const remaining=Math.max(0, 50-chooseNew-chooseRevDue); const chooseRevNotDue=Math.min(revNotDueShuf.length, remaining); const chosenNew=newShuf.slice(0,chooseNew); const chosenRev=revDueShuf.slice(0,chooseRevDue).concat(revNotDueShuf.slice(0,chooseRevNotDue)); const queue=[]; let i=0,j=0; let turn=(chosenRev.length>0)?'rev':'new'; while(i<chosenNew.length || j<chosenRev.length){ if(turn==='rev' && j<chosenRev.length) queue.push(chosenRev[j++]); else if(turn==='new' && i<chosenNew.length) queue.push(chosenNew[i++]); else if(j<chosenRev.length) queue.push(chosenRev[j++]); else if(i<chosenNew.length) queue.push(chosenNew[i++]); turn = (turn==='rev')?'new':'rev'; } daily={dateISO:todayISO, queue, cursor:0}; saveDaily(currentUser,currentDeckName,daily); }
-function advanceQueue(){ if(!daily) return; daily.cursor+=1; if(daily.cursor>daily.queue.length) daily.cursor=daily.queue.length; saveDaily(currentUser,currentDeckName,daily); }
-function queueRemaining(){ return daily? (daily.queue.length-daily.cursor):0; } function queueTotal(){ return daily? daily.queue.length:0; } function currentCardId(){ return (daily && daily.cursor<daily.queue.length)? daily.queue[daily.cursor]:null; }
-function updateDots(total){ const showDots=Math.min(total,50); dots.innerHTML=''; for(let i=0;i<showDots;i++){ const dot=document.createElement('span'); const active=i===Math.min(daily?daily.cursor:0, showDots-1); dot.className='dot'+(active?' active':''); dots.appendChild(dot); } }
-function updateProgress(){ const total=queueTotal(); const pos=Math.min(daily?daily.cursor+1:0, total); progressText.textContent=`Card ${pos} of ${total}`; dueCountEl.textContent=`${queueRemaining()} left`; updateDots(total); }
-function showCard(){ isFlipped=false; flashcard.classList.remove('flipped'); flipRow.classList.remove('hidden'); rateRow.classList.add('hidden'); const cid=currentCardId(); if(!cid){ emptyState.classList.remove('hidden'); cardFront.textContent='No cards for today'; cardBack.textContent=''; cardStartMs=null; updateProgress(); return; } else emptyState.classList.add('hidden'); const idx=idToIndex.get(cid); const card=currentDeck[idx]; cardFront.textContent=card.front; cardBack.textContent=card.back; updateProgress(); cardStartMs=Date.now(); }
+const settingsModal=document.getElementById('settingsModal'); const closeSettings=document.getElementById('closeSettings'); const tabs=document.querySelectorAll('.tab'); const tabManage=document.getElementById('tab-manage'); const tabStats=document.getElementById('tab-stats'); const newFront=document.getElementById('newFront'); const newBack=document.getElementById('newBack'); const addCardBtn=document.getElementById('addCardBtn'); const cardsList=document.getElementById('cardsList'); const statsOverview=document.getElementById('statsOverview'); const sessionsList=document.getElementById('sessionsList'); const streakNowEl=document.getElementById('streakNow'); const streakBestEl=document.getElementById('streakBest'); const reviewsChart=document.getElementById('reviewsChart'); const timeChart=document.getElementById('timeChart'); const resetStatsBtn=document.getElementById('resetStatsBtn'); const themeToggle=document.getElementById('themeToggle');
+
+// --- Storage helpers ---
+const k = (...parts)=> [LS_PREFIX, ...parts].join(':');
+const clone = (x)=> JSON.parse(JSON.stringify(x));
+const rngInt=(min,max)=> Math.floor(Math.random()*(max-min+1))+min;
+
+const getDeckOverrides=(u)=> JSON.parse(localStorage.getItem(k('decks',u))||'{}');
+const setDeckOverrides=(u,o)=> localStorage.setItem(k('decks',u), JSON.stringify(o));
+const getUserDeck=(u,name)=> { const o=getDeckOverrides(u); const src=Array.isArray(o[name])?o[name]:baseDecks[name]; return clone(src); }
+const saveUserDeck=(u,name,cards)=> { const o=getDeckOverrides(u); o[name]=cards; setDeckOverrides(u,o); }
+
+const getSrs=(u,name)=> JSON.parse(localStorage.getItem(k('srs',u,name))||'{}');
+const setSrs=(u,name,map)=> localStorage.setItem(k('srs',u,name), JSON.stringify(map));
+
+const getDaily=(u,name)=> JSON.parse(localStorage.getItem(k('daily',u,name))||'null');
+const setDaily=(u,name,obj)=> localStorage.setItem(k('daily',u,name), JSON.stringify(obj));
+
+const getStats=(u,name)=> JSON.parse(localStorage.getItem(k('stats',u,name))||'[]');
+const setStats=(u,name,arr)=> localStorage.setItem(k('stats',u,name), JSON.stringify(arr));
+
+// --- Dates ---
+const todayStart=(d=new Date())=> new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const addDays=(d,days)=> { const nd=new Date(d); nd.setDate(nd.getDate()+days); return nd; };
+const isoDate=(d)=> new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0,10);
+
+// --- Seed decks for ALL allowed users (first-load only) ---
+(function seedDecksForAllUsers(){
+  for (const uid of ALLOWED_USERS){
+    const o = getDeckOverrides(uid);
+    let changed = false;
+    if (!Array.isArray(o.HSK2)) { o.HSK2 = clone(baseDecks.HSK2); changed = true; }
+    if (!Array.isArray(o.HSK3)) { o.HSK3 = clone(baseDecks.HSK3); changed = true; }
+    if (changed) setDeckOverrides(uid, o);
+  }
+})();
+
+// --- Build/restore today's queue ---
+function rebuildIndexMap(){ idToIndex=new Map(); for(let i=0;i<currentDeck.length;i++) idToIndex.set(currentDeck[i].id,i); }
+
+function ensureDailyQueue(){
+  const todayISO=isoDate(new Date());
+  daily = getDaily(currentUser, currentDeckName);
+  if (daily && daily.dateISO===todayISO) {
+    const validIds=new Set(currentDeck.map(c=>c.id));
+    daily.queue = daily.queue.filter(id=>validIds.has(id));
+    daily.completed = Array.isArray(daily.completed)? daily.completed.filter(id=>validIds.has(id)) : [];
+    if (daily.cursor>daily.queue.length) daily.cursor=daily.queue.length;
+    setDaily(currentUser,currentDeckName,daily);
+    return;
+  }
+  const srs=getSrs(currentUser,currentDeckName);
+  const newIds=[], reviewDue=[], reviewNotDue=[];
+  const tKey=todayISO;
+  for(const c of currentDeck){
+    const meta=srs[c.id];
+    if (!meta) newIds.push(c.id);
+    else {
+      const due=(meta.dueISO||'1970-01-01');
+      if (due<=tKey) reviewDue.push(c.id); else reviewNotDue.push(c.id);
+    }
+  }
+  const shuffle=(a)=>{ const b=a.slice(); for(let i=b.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [b[i],b[j]]=[b[j],b[i]];} return b; };
+  const newSh=shuffle(newIds), revDueSh=shuffle(reviewDue), revNSh=shuffle(reviewNotDue);
+  const n=Math.min(DAILY_NEW_LIMIT,newSh.length);
+  const r1=Math.min(revDueSh.length, Math.max(0, DAILY_TOTAL_LIMIT-n));
+  const remaining=Math.max(0, DAILY_TOTAL_LIMIT-n-r1);
+  const r2=Math.min(revNSh.length, remaining);
+  const chosenNew=newSh.slice(0,n);
+  const chosenRev=revDueSh.slice(0,r1).concat(revNSh.slice(0,r2));
+  const queue=[]; let i=0,j=0; let turn=chosenRev.length>0?'rev':'new';
+  while(i<chosenNew.length || j<chosenRev.length){ if(turn==='rev'&&j<chosenRev.length) queue.push(chosenRev[j++]); else if(turn==='new'&&i<chosenNew.length) queue.push(chosenNew[i++]); else if(j<chosenRev.length) queue.push(chosenRev[j++]); else if(i<chosenNew.length) queue.push(chosenNew[i++]); turn=(turn==='rev')?'new':'rev'; }
+  daily={dateISO:todayISO, queue, cursor:0, completed:[]};
+  setDaily(currentUser,currentDeckName,daily);
+}
+
+// --- UI helpers ---
+function updateDueLeft(){ const left = daily? (daily.queue.length - daily.cursor): 0; dueCountEl.textContent = `${left} left`; }
+
+function showCard(){
+  isFlipped=false; flashcard.classList.remove('flipped');
+  flipRow.classList.remove('hidden'); rateRow.classList.add('hidden');
+  const cid = (daily && daily.cursor<daily.queue.length) ? daily.queue[daily.cursor] : null;
+  if (!cid) { document.getElementById('emptyState').classList.remove('hidden'); cardFront.textContent='No cards for today'; cardBack.textContent=''; cardStartMs=null; updateDueLeft(); return; }
+  document.getElementById('emptyState').classList.add('hidden');
+  const card = currentDeck[idToIndex.get(cid)];
+  cardFront.textContent = card.front;
+  cardBack.textContent  = card.back;
+  cardStartMs = Date.now();
+  updateDueLeft();
+}
+
 function flipCard(){ if(isFlipped) return; isFlipped=true; flashcard.classList.add('flipped'); flipRow.classList.add('hidden'); rateRow.classList.remove('hidden'); }
-function rate(rating){ const nowMs=Date.now(); const elapsed=cardStartMs? (nowMs-cardStartMs):0; const cid=currentCardId(); if(!cid) return; const idx=idToIndex.get(cid); const card=currentDeck[idx]; session.reviewed+=1; if(rating==='again'||rating==='hard') session.incorrect+=1; else session.correct+=1; session.totalMs+=elapsed; const map=getSrsMap(currentUser,currentDeckName); const meta=map[cid]||{}; map[cid]=updateSRS(meta, rating); saveSrsMap(currentUser,currentDeckName,map); advanceQueue(); showCard(); }
-function startSession(){ session={startedAt:new Date().toISOString(), finishedAt:null, reviewed:0, correct:0, incorrect:0, totalMs:0}; }
-function maybeEndSession(save=true){ if(!session) return; if(session.reviewed>0){ session.finishedAt=new Date().toISOString(); if(save){ const list=getStats(currentUser,currentDeckName); list.push(session); saveStats(currentUser,currentDeckName, list.slice(-200)); } } session=null; }
-function rebuildIndexMap(){ idToIndex=new Map(); for(let i=0;i<currentDeck.length;i++) idToIndex.set(currentDeck[i].id, i); }
+
+// --- Scheduling logic ---
+function markCompletedToday(id){ if(!daily.completed.includes(id)) daily.completed.push(id); }
+function advanceQueue(){ if(!daily) return; daily.cursor += 1; if(daily.cursor>daily.queue.length) daily.cursor=daily.queue.length; setDaily(currentUser,currentDeckName,daily); }
+function insertBackInQueue(id, minOff, maxOff){
+  const offset = rngInt(minOff, maxOff);
+  const insertIndex = Math.min(daily.cursor + offset, daily.queue.length);
+  daily.queue.splice(insertIndex, 0, id);
+  setDaily(currentUser,currentDeckName,daily);
+}
+
+function updateSRSFuture(id, minDays, maxDays){
+  const map=getSrs(currentUser,currentDeckName);
+  const meta=map[id]||{ef:2.5, ivl:0, reps:0, lapses:0};
+  const days = rngInt(minDays, maxDays);
+  meta.ivl = days; meta.reps = (meta.reps||0)+1; meta.ef = Math.max(1.3, (meta.ef||2.5));
+  meta.dueISO = isoDate(addDays(todayStart(), days));
+  map[id]=meta; setSrs(currentUser,currentDeckName,map);
+}
+
+function rate(rating){
+  const nowMs=Date.now(); const elapsed = cardStartMs? (nowMs-cardStartMs):0;
+  const cid = (daily && daily.cursor<daily.queue.length) ? daily.queue[daily.cursor] : null; if(!cid) return;
+
+  session.reviewed += 1;
+  if (rating==='again' || rating==='hard') session.incorrect += 1; else session.correct += 1;
+  session.totalMs += elapsed;
+
+  advanceQueue();
+
+  if (rating==='again'){
+    insertBackInQueue(cid, AGAIN_OFFSET[0], AGAIN_OFFSET[1]);
+  } else if (rating==='hard'){
+    insertBackInQueue(cid, HARD_OFFSET[0], HARD_OFFSET[1]);
+  } else if (rating==='good'){
+    markCompletedToday(cid);
+    updateSRSFuture(cid, GOOD_WINDOW[0], GOOD_WINDOW[1]);
+  } else if (rating==='easy'){
+    markCompletedToday(cid);
+    updateSRSFuture(cid, EASY_WINDOW[0], EASY_WINDOW[1]);
+  }
+
+  showCard();
+}
+
+// --- Session & Navigation ---
+function startSession(){ session={ startedAt:new Date().toISOString(), finishedAt:null, reviewed:0, correct:0, incorrect:0, totalMs:0 }; }
+function maybeEndSession(save=true){ if(!session) return; if(session.reviewed>0){ session.finishedAt=new Date().toISOString(); if(save){ const list=getStats(currentUser,currentDeckName); list.push(session); setStats(currentUser,currentDeckName, list.slice(-200)); }} session=null; }
+
 function enterReview(name){ currentDeckName=name; deckNameEl.textContent=name; currentDeck=getUserDeck(currentUser,currentDeckName); rebuildIndexMap(); ensureDailyQueue(); startSession(); deckSelectPanel.style.display='none'; reviewPanel.style.display='block'; showCard(); }
-function renderAllowed(){ allowedList.innerHTML=ALLOWED_USERS.map(u=>`<code>${u}</code>`).join(' '); } function loadLogin(){ loginSection.style.display='block'; deckSelectPanel.style.display='none'; reviewPanel.style.display='none'; renderAllowed(); } function loadDeckSelect(){ loginSection.style.display='none'; reviewPanel.style.display='none'; deckSelectPanel.style.display='block'; }
-function login(){ const userId=userIdInput.value.trim(); if(!ALLOWED_USERS.includes(userId)){ alert('Invalid ID'); return; } currentUser=userId; whoEl.textContent=userId; localStorage.setItem(lsKey('lastUser'), userId); loadDeckSelect(); } function logout(){ maybeEndSession(true); currentUser=null; currentDeck=[]; userIdInput.value=''; loadLogin(); userIdInput.focus(); }
-function initTheme(){ const saved=localStorage.getItem(lsKey('theme')); if(saved==='light') document.body.setAttribute('data-theme','light'); } function toggleTheme(){ const isLight=document.body.getAttribute('data-theme')==='light'; document.body.setAttribute('data-theme', isLight?'':'light'); localStorage.setItem(lsKey('theme'), isLight?'dark':'light'); }
-function openSettings(){ renderManage(); renderStats(); settingsModal.classList.add('open'); settingsModal.setAttribute('aria-hidden','false'); } function closeSettingsModal(){ settingsModal.classList.remove('open'); settingsModal.setAttribute('aria-hidden','true'); } function switchTab(which){ tabs.forEach(t=>t.classList.toggle('active', t.dataset.tab===which)); tabManage.classList.toggle('hidden', which!=='manage'); tabStats.classList.toggle('hidden', which!=='stats'); if(which==='stats') renderStats(); }
-function renderManage(){ const cards=getUserDeck(currentUser,currentDeckName); cardsList.innerHTML=''; cards.forEach((c,idx)=>{ const row=document.createElement('div'); row.className='card-item'; const f=document.createElement('div'); f.className='card-text'; f.textContent=c.front; const b=document.createElement('div'); b.className='card-text'; b.textContent=c.back; const actions=document.createElement('div'); actions.className='card-actions'; const del=document.createElement('button'); del.className='danger'; del.textContent='Delete'; del.addEventListener('click',()=>{ if(!confirm('Delete this card?')) return; const updated=getUserDeck(currentUser,currentDeckName); const removed=updated.splice(idx,1)[0]; saveUserDeck(currentUser,currentDeckName, updated); currentDeck=updated; rebuildIndexMap(); if(daily){ daily.queue=daily.queue.filter(id=>id!==removed.id); if(daily.cursor>daily.queue.length) daily.cursor=daily.queue.length; saveDaily(currentUser,currentDeckName,daily); } renderManage(); showCard(); }); actions.appendChild(del); row.appendChild(f); row.appendChild(b); row.appendChild(actions); cardsList.appendChild(row); }); }
-addCardBtn.addEventListener('click',()=>{ const front=newFront.value.trim(); const back=newBack.value.trim(); if(!front||!back){ alert('Please enter both front and back.'); return; } const cards=getUserDeck(currentUser,currentDeckName); const id=front+'|'+Date.now().toString(36); cards.push({id,front,back}); saveUserDeck(currentUser,currentDeckName,cards); newFront.value=''; newBack.value=''; currentDeck=cards; rebuildIndexMap(); renderManage(); });
-function msToReadable(ms){ if(!ms) return '0.0s'; return (ms/1000).toFixed(1)+'s'; } function pct(n,d){ return d>0? Math.round((n/d)*100):0; }
-function buildDailySeries(sessions,days=14){ const series=[]; const today=todayLocalStart(); const map=new Map(); for(const s of sessions){ const ended=s.finishedAt?new Date(s.finishedAt):new Date(s.startedAt); const key=isoDate(ended); const cur=map.get(key)||{reviews:0, ms:0}; cur.reviews+=s.reviewed; cur.ms+=s.totalMs; map.set(key,cur); } for(let i=days-1;i>=0;i--){ const d=addDays(today,-i); const key=isoDate(d); const v=map.get(key)||{reviews:0, ms:0}; series.push({date:key, reviews:v.reviews, minutes: Math.round(v.ms/600)/10}); } return series; }
-function calcStreaks(sessions){ const series=buildDailySeries(sessions,120); let cur=0,best=0; for(let i=series.length-1;i>=0;i--){ if(series[i].reviews>0) cur++; else cur=0; if(cur>best) best=cur; } return {current:cur,best}; }
-function renderBars(container, series, key){ container.innerHTML=''; const maxVal=Math.max(1,...series.map(s=>s[key])); series.forEach(s=>{ const bar=document.createElement('div'); bar.className='bar'; bar.style.height=Math.round((s[key]/maxVal)*100)+'%'; const tip=document.createElement('div'); tip.className='tip'; tip.textContent=`${s.date}
-${s[key]}${key==='minutes'?' min':''}`; bar.appendChild(tip); container.appendChild(bar); }); }
-function renderStats(){ const sessions=getStats(currentUser,currentDeckName); const totalReviewed=sessions.reduce((a,s)=>a+s.reviewed,0); const totalCorrect=sessions.reduce((a,s)=>a+s.correct,0); const totalMs=sessions.reduce((a,s)=>a+s.totalMs,0); const overallAcc=pct(totalCorrect,totalReviewed); const avgMs= totalReviewed>0? Math.round(totalMs/totalReviewed):0; statsOverview.innerHTML=''; const mk=(label,value)=>{ const d=document.createElement('div'); d.className='stat'; d.innerHTML=`<div class="label">${label}</div><div class="value">${value}</div>`; return d; }; statsOverview.appendChild(mk('Average time per card', msToReadable(avgMs))); statsOverview.appendChild(mk('Accuracy', overallAcc+'%')); statsOverview.appendChild(mk('Total reviewed', String(totalReviewed))); const last5=sessions.slice(-5); sessionsList.innerHTML=''; last5.forEach(s=>{ const row=document.createElement('div'); row.className='session-row'; const date=new Date(s.finishedAt||s.startedAt); const dateEl=document.createElement('div'); dateEl.className='session-date'; dateEl.textContent=date.toLocaleDateString(); const countEl=document.createElement('div'); countEl.textContent=`${s.reviewed} cards`; const accEl=document.createElement('div'); accEl.textContent=`${pct(s.correct,s.reviewed)}%`; const timeEl=document.createElement('div'); timeEl.textContent=msToReadable(s.reviewed?Math.round(s.totalMs/s.reviewed):0); row.appendChild(dateEl); row.appendChild(countEl); row.appendChild(accEl); row.appendChild(timeEl); sessionsList.appendChild(row); }); const {current,best}=calcStreaks(sessions); streakNowEl.textContent=`${current} ${current===1?'day':'days'}`; streakBestEl.textContent=`${best} ${best===1?'day':'days'}`; const last14=buildDailySeries(sessions,14); renderBars(reviewsChart,last14,'reviews'); renderBars(timeChart,last14,'minutes'); }
-resetStatsBtn.addEventListener('click',()=>{ if(!confirm('Reset all stats for this deck?')) return; saveStats(currentUser,currentDeckName,[]); renderStats(); });
-startBtn.addEventListener('click', login); userIdInput.addEventListener('keydown',(e)=>{ if(e.key==='Enter') login(); }); logoutBtn.addEventListener('click', logout);
-deckButtons.forEach(btn=> btn.addEventListener('click',()=> enterReview(btn.dataset.deck))); backToDecks.addEventListener('click',()=>{ maybeEndSession(true); reviewPanel.style.display='none'; deckSelectPanel.style.display='block'; });
-flashcard.addEventListener('click',()=>{ if(!isFlipped) flipCard(); }); flipBtn.addEventListener('click', flipCard);
-againBtn.addEventListener('click',()=> rate('again')); hardBtn.addEventListener('click',()=> rate('hard')); goodBtn.addEventListener('click',()=> rate('good')); easyBtn.addEventListener('click',()=> rate('easy'));
-endSessionBtn.addEventListener('click',()=>{ maybeEndSession(true); startSession(); alert('Session saved. New session started.'); renderStats(); });
-document.addEventListener('keydown',(e)=>{ if(reviewPanel.style.display==='none') return; if(!isFlipped && (e.key===' '||e.code==='Space')){ e.preventDefault(); flipCard(); } else if(isFlipped){ if(e.key==='1') rate('again'); else if(e.key==='2') rate('hard'); else if(e.key==='3') rate('good'); else if(e.key==='4') rate('easy'); } });
-settingsBtn.addEventListener('click', openSettings); closeSettings.addEventListener('click', closeSettingsModal); document.getElementById('modalBackdrop').addEventListener('click', closeSettingsModal); tabs.forEach(t=> t.addEventListener('click',()=> switchTab(t.dataset.tab)));
-const lastUser=localStorage.getItem(lsKey('lastUser')); if(lastUser) userIdInput.value=lastUser; function onLoad(){ loadLogin(); } window.addEventListener('load', onLoad); window.addEventListener('beforeunload',()=>{ maybeEndSession(true); });
+
+function login(){ const userId = userIdInput.value.trim(); if(!ALLOWED_USERS.includes(userId)){ alert('Invalid ID'); return; } currentUser=userId; whoEl.textContent=userId; localStorage.setItem(k('lastUser'), userId); deckSelectPanel.style.display='block'; loginSection.style.display='none'; }
+function logout(){ maybeEndSession(true); currentUser=null; currentDeck=[]; userIdInput.value=''; loginSection.style.display='block'; deckSelectPanel.style.display='none'; reviewPanel.style.display='none'; userIdInput.focus(); }
+
+function initTheme(){ const saved=localStorage.getItem(k('theme')); if(saved==='light') document.body.setAttribute('data-theme','light'); }
+function toggleTheme(){ const isLight=document.body.getAttribute('data-theme')==='light'; document.body.setAttribute('data-theme', isLight?'':'light'); localStorage.setItem(k('theme'), isLight?'dark':'light'); }
+
+function openSettings(){ renderManage(); renderStats(); settingsModal.classList.add('open'); settingsModal.setAttribute('aria-hidden','false'); }
+function closeSettingsModal(){ settingsModal.classList.remove('open'); settingsModal.setAttribute('aria-hidden','true'); }
+function switchTab(which){ tabs.forEach(t=>t.classList.toggle('active', t.dataset.tab===which)); tabManage.classList.toggle('hidden', which!=='manage'); tabStats.classList.toggle('hidden', which!=='stats'); if(which==='stats') renderStats(); }
+
+function renderManage(){ const cards=getUserDeck(currentUser,currentDeckName); cardsList.innerHTML=''; cards.forEach((c,idx)=>{ const row=document.createElement('div'); row.className='card-item'; const f=document.createElement('div'); f.className='card-text'; f.textContent=c.front; const b=document.createElement('div'); b.className='card-text'; b.textContent=c.back; const actions=document.createElement('div'); actions.className='card-actions'; const del=document.createElement('button'); del.className='danger'; del.textContent='Delete'; del.addEventListener('click',()=>{ if(!confirm('Delete this card?')) return; const updated=getUserDeck(currentUser,currentDeckName); const removed=updated.splice(idx,1)[0]; saveUserDeck(currentUser,currentDeckName,updated); currentDeck=updated; rebuildIndexMap(); if(daily){ daily.queue=daily.queue.filter(id=>id!==removed.id); if(daily.cursor>daily.queue.length) daily.cursor=daily.queue.length; setDaily(currentUser,currentDeckName,daily); } renderManage(); showCard(); }); actions.appendChild(del); row.appendChild(f); row.appendChild(b); row.appendChild(actions); cardsList.appendChild(row); }); }
+
+function msToReadable(ms){ if(!ms) return '0.0s'; return (ms/1000).toFixed(1)+'s'; }
+function pct(n,d){ return d>0? Math.round((n/d)*100) : 0; }
+function buildDailySeries(sessions, days=14){ const series=[]; const today=todayStart(); const map=new Map(); for(const s of sessions){ const ended=s.finishedAt?new Date(s.finishedAt):new Date(s.startedAt); const key=isoDate(ended); const cur=map.get(key)||{reviews:0, ms:0}; cur.reviews+=s.reviewed; cur.ms+=s.totalMs; map.set(key,cur); } for(let i=days-1;i>=0;i--){ const d=addDays(today,-i); const key=isoDate(d); const v=map.get(key)||{reviews:0, ms:0}; series.push({date:key, reviews:v.reviews, minutes: Math.round(v.ms/600)/10}); } return series; }
+function calcStreaks(sessions){ const series=buildDailySeries(sessions,120); let cur=0,best=0; for(let i=series.length-1;i>=0;i--){ if(series[i].reviews>0){ cur++; if(cur>best) best=cur; } else cur=0; } return {current:cur,best}; }
+function renderBars(container, series, key){ container.innerHTML=''; const maxVal=Math.max(1,...series.map(s=>s[key])); series.forEach(s=>{ const bar=document.createElement('div'); bar.className='bar'; bar.style.height=Math.round((s[key]/maxVal)*100)+'%'; const tip=document.createElement('div'); tip.className='tip'; tip.textContent=`${s.date}\n${s[key]}${key==='minutes'?' min':''}`; bar.appendChild(tip); container.appendChild(bar); }); }
+function renderStats(){ const sessions=getStats(currentUser,currentDeckName); const totalReviewed=sessions.reduce((a,s)=>a+s.reviewed,0); const totalCorrect=sessions.reduce((a,s)=>a+s.correct,0); const totalMs=sessions.reduce((a,s)=>a+s.totalMs,0); const overallAcc=pct(totalCorrect,totalReviewed); const avgMs= totalReviewed>0? Math.round(totalMs/totalReviewed):0; statsOverview.innerHTML=''; const mk=(label,value)=>{ const d=document.createElement('div'); d.className='stat'; d.innerHTML=`<div class=\"label\">${label}</div><div class=\"value\">${value}</div>`; return d; }; statsOverview.appendChild(mk('Average time per card', msToReadable(avgMs))); statsOverview.appendChild(mk('Accuracy', overallAcc+'%')); statsOverview.appendChild(mk('Total reviewed', String(totalReviewed))); const last5=sessions.slice(-5); sessionsList.innerHTML=''; last5.forEach(s=>{ const row=document.createElement('div'); row.className='session-row'; const date=new Date(s.finishedAt||s.startedAt); const dateEl=document.createElement('div'); dateEl.className='session-date'; dateEl.textContent=date.toLocaleDateString(); const countEl=document.createElement('div'); countEl.textContent=`${s.reviewed} cards`; const accEl=document.createElement('div'); accEl.textContent=`${pct(s.correct,s.reviewed)}%`; const timeEl=document.createElement('div'); timeEl.textContent=msToReadable(s.reviewed?Math.round(s.totalMs/s.reviewed):0); row.appendChild(dateEl); row.appendChild(countEl); row.appendChild(accEl); row.appendChild(timeEl); sessionsList.appendChild(row); }); const {current,best}=calcStreaks(sessions); document.getElementById('streakNow').textContent=`${current} ${current===1?'day':'days'}`; document.getElementById('streakBest').textContent=`${best} ${best===1?'day':'days'}`; const last14=buildDailySeries(sessions,14); renderBars(reviewsChart,last14,'reviews'); renderBars(timeChart,last14,'minutes'); }
+
+// Keyboard shortcuts
+window.addEventListener('keydown', (e)=>{
+  if (e.key===' ') { e.preventDefault(); if(!isFlipped) flipCard(); return; }
+  if (!rateRow.classList.contains('hidden')){
+    if(e.key==='1') rate('again');
+    else if(e.key==='2') rate('hard');
+    else if(e.key==='3') rate('good');
+    else if(e.key==='4') rate('easy');
+  }
+});
+
+// Events
+startBtn.addEventListener('click', login); userIdInput.addEventListener('keydown', e=>{ if(e.key==='Enter') login(); }); logoutBtn.addEventListener('click', logout);
+deckButtons.forEach(btn=> btn.addEventListener('click', ()=> enterReview(btn.dataset.deck)));
+backToDecks.addEventListener('click', ()=>{ maybeEndSession(true); reviewPanel.style.display='none'; deckSelectPanel.style.display='block'; });
+flashcard.addEventListener('click', ()=>{ if(!isFlipped) flipCard(); }); flipBtn.addEventListener('click', flipCard);
+againBtn.addEventListener('click', ()=> rate('again')); hardBtn.addEventListener('click', ()=> rate('hard')); goodBtn.addEventListener('click', ()=> rate('good')); easyBtn.addEventListener('click', ()=> rate('easy'));
+endSessionBtn.addEventListener('click', ()=>{ maybeEndSession(true); startSession(); alert('Session saved. New session started.'); renderStats(); });
+settingsBtn.addEventListener('click', openSettings); closeSettings.addEventListener('click', closeSettingsModal); document.getElementById('modalBackdrop').addEventListener('click', closeSettingsModal); tabs.forEach(t=> t.addEventListener('click', ()=> switchTab(t.dataset.tab)));
+initTheme(); themeToggle.addEventListener('click', toggleTheme);
+const lastUser=localStorage.getItem(k('lastUser')); if(lastUser) userIdInput.value=lastUser;
+window.addEventListener('beforeunload', ()=>{ maybeEndSession(true); });
+// Load first screen
+loginSection.style.display='block';

@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mini Anki — Daily Limits & SRS</title>
+  <title>Mand12 Cards</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">Mini Anki</div>
+    <div class="brand">Mand12 Cards</div>
     <div class="spacer"></div>
     <button id="themeToggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">🌗</button>
   </header>
@@ -16,16 +16,13 @@
     <section id="login" class="panel">
       <div class="panel-header">
         <h1>Welcome</h1>
-        <p class="muted">Enter your special ID to continue</p>
+        <p class="muted">Enter your ID to continue</p>
       </div>
       <div class="panel-body">
         <div class="input-row">
-          <input type="text" id="userId" placeholder="e.g. Mand####" autocomplete="off" />
+          <input type="text" id="userId" placeholder="Mand####" autocomplete="off" />
           <button id="startBtn" class="primary">Continue →</button>
         </div>
-        <details class="hint"><summary>Show allowed IDs</summary>
-          <div id="allowedList" class="allowed"></div>
-        </details>
       </div>
     </section>
     <section id="deckSelectPanel" class="panel" style="display:none;">
@@ -59,19 +56,14 @@
         </div>
       </div>
       <div class="controls" id="flipRow">
-        <button id="flipBtn" class="primary" title="Flip (Space)">Flip ⤾</button>
+        <button id="flipBtn" class="primary lg" title="Flip (Space)">Flip ⤾</button>
       </div>
-      <div class="controls wrap hidden" id="rateRow">
-        <button id="againBtn" class="rate rate-again" title="1 = Again">Again</button>
-        <button id="hardBtn"  class="rate rate-hard"  title="2 = Hard">Hard</button>
-        <button id="goodBtn"  class="rate rate-good"  title="3 = Good">Good</button>
-        <button id="easyBtn"  class="rate rate-easy"  title="4 = Easy">Easy</button>
+      <div class="controls center wrap hidden" id="rateRow">
+        <button id="againBtn" class="rate rate-again xl" title="1 = Again">Again</button>
+        <button id="hardBtn"  class="rate rate-hard  xl" title="2 = Hard">Hard</button>
+        <button id="goodBtn"  class="rate rate-good  xl" title="3 = Good">Good</button>
+        <button id="easyBtn"  class="rate rate-easy  xl" title="4 = Easy">Easy</button>
         <button id="endSessionBtn" class="outline" title="End session & save">End Session & Save</button>
-      </div>
-      <div class="progress-row">
-        <div id="progressText" class="muted">Card 0 of 0</div>
-        <div class="spacer"></div>
-        <div class="dots" id="dots"></div>
       </div>
       <div id="emptyState" class="empty hidden">
         <h3>All caught up 🎉</h3>
